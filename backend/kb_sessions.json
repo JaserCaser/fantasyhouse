@@ -1,0 +1,91 @@
+{
+  "sessions": {
+    "7cc3eb9f6c8749f6ac6aa58a5fd41ac2": {
+      "username": "testadmin",
+      "name": "测试管理员",
+      "role": "admin",
+      "expires": "2026-04-22T10:38:45.055515"
+    },
+    "009b4bef680143528e94d96a76a2f295": {
+      "username": "testadmin",
+      "name": "测试管理员",
+      "role": "admin",
+      "expires": "2026-04-22T10:38:47.103303"
+    },
+    "2b1f5b695a0843e4a90043c7fec2d227": {
+      "username": "testadmin",
+      "name": "测试管理员",
+      "role": "admin",
+      "expires": "2026-04-22T10:39:06.843987"
+    },
+    "cb592861eba946d2a1095677c9cc256d": {
+      "username": "admin",
+      "name": "管理员",
+      "role": "admin",
+      "expires": "2026-04-22T14:20:54.295054"
+    },
+    "60d2faa1563b41669736ae30dacd6e26": {
+      "username": "admin",
+      "name": "管理员",
+      "role": "admin",
+      "status": "active",
+      "expires": "2026-04-22T15:22:36.589544"
+    },
+    "2a7ee5003a8649359421d6455f1babc3": {
+      "username": "admin",
+      "name": "管理员",
+      "role": "admin",
+      "status": "active",
+      "expires": "2026-04-22T15:24:18.509043"
+    },
+    "fc03a1efc4cc428dba5004a47330409e": {
+      "username": "testuser",
+      "name": "测试用户",
+      "role": "member",
+      "status": "active",
+      "expires": "2026-04-22T15:24:22.606679"
+    },
+    "d15c1354b14f48ea94ee646bf3e5f38d": {
+      "username": "admin",
+      "name": "管理员",
+      "role": "admin",
+      "status": "active",
+      "expires": "2026-04-22T15:28:58.099295"
+    },
+    "e01227024ba6430ca042a6e44771cffa": {
+      "username": "admin",
+      "name": "管理员",
+      "role": "admin",
+      "status": "active",
+      "expires": "2026-04-22T15:30:12.521496"
+    },
+    "296e39173479450e8b4b33a7ec6c9a73": {
+      "username": "admin",
+      "name": "管理员",
+      "role": "admin",
+      "status": "active",
+      "expires": "2026-04-22T15:47:15.094439"
+    },
+    "16356ea213484d8f8760d1bdb2a3e6a5": {
+      "username": "newmember2",
+      "name": "新成员2",
+      "role": "member",
+      "status": "active",
+      "expires": "2026-04-22T15:47:21.224065"
+    },
+    "aefd7bd9b82b400bbd393e589b9679ef": {
+      "username": "admin",
+      "name": "管理员",
+      "role": "admin",
+      "status": "active",
+      "expires": "2026-04-22T17:04:45.049855"
+    },
+    "6ebbabdcdda24a4f824916d5f7604c40": {
+      "username": "admin",
+      "name": "管理员",
+      "role": "admin",
+      "status": "active",
+      "expires": "2026-04-22T17:20:37.041355"
+    }
+  }
+}

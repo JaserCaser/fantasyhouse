@@ -1,0 +1,641 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Music Genre Fan Carousel</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #f5f0ff;
+  font-family: 'Segoe UI', 'PingFang SC', Arial, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* ───── Page header ───── */
+.page-header {
+  text-align: center;
+  margin-bottom: 24px;
+  user-select: none;
+}
+.page-header h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #3d1a8c;
+  letter-spacing: -0.5px;
+}
+.page-header p {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: #9b7fe8;
+}
+
+/* ───── Outer wrapper ───── */
+.carousel-wrapper {
+  position: relative;
+  width: 100vw;
+  max-width: 1300px;
+  height: 520px;
+  overflow: hidden;
+}
+
+/* ───── Arc track — circular segment matching cards' path (r=820) ───── */
+.arc-base {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: 1300px;
+  height: 100%;
+  margin: 0 auto;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ───── Navigation arrows ───── */
+.nav-btn {
+  position: absolute;
+  top: 48%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.92);
+  border: 1.5px solid #e0d0f8;
+  box-shadow: 0 4px 16px rgba(120,80,200,0.13);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+  user-select: none;
+}
+.nav-btn svg { width: 22px; height: 22px; fill: none; stroke: #8b6fd4; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.nav-btn:hover { background: #8b6fd4; box-shadow: 0 6px 20px rgba(139,111,212,0.4); transform: translateY(-50%) scale(1.08); }
+.nav-btn:hover svg { stroke: #fff; }
+.nav-btn:active { transform: translateY(-50%) scale(0.96); }
+.nav-btn.left  { left: 28px; }
+.nav-btn.right { right: 28px; }
+
+/* ───── Cards container ───── */
+.cards-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1400px;
+  transform: translateZ(0);
+}
+
+/* ───── Single card ───── */
+.card {
+  position: absolute;
+  width: 188px;
+  height: 252px;
+  border-radius: 20px;
+  cursor: pointer;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.card-body {
+  width: 100%;
+  height: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 8px 28px rgba(80,40,160,0.22);
+  transition: box-shadow 0.3s;
+}
+.card.active .card-body {
+  box-shadow: 0 18px 48px rgba(80,40,160,0.40);
+}
+
+/* ── Cover image area ── */
+.card-cover {
+  width: 100%;
+  height: 62%;
+  position: relative;
+  overflow: hidden;
+}
+.card-cover svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Play button ── */
+.play-btn {
+  position: absolute;
+  bottom: 12px;
+  left: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.93);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+  transition: transform 0.2s, background 0.2s;
+  z-index: 5;
+  pointer-events: none;
+}
+.card:hover .play-btn { transform: scale(1.12); background: #fff; }
+.play-icon {
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 7px 0 7px 13px;
+  border-color: transparent transparent transparent #7b5cf0;
+  margin-left: 3px;
+}
+
+/* ── Card info area ── */
+.card-info {
+  padding: 11px 14px 10px;
+  height: 38%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+}
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.25);
+  white-space: nowrap;
+}
+.card-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.tag {
+  font-size: 0.62rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.92);
+  border: 1px solid rgba(255,255,255,0.28);
+  letter-spacing: 0.3px;
+}
+
+/* ── New badge ── */
+.badge-new {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  background: #161629;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+/* ───── Dot indicators ───── */
+.dots-container {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  z-index: 200;
+}
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #c4b0f0;
+  cursor: pointer;
+  transition: all 0.35s cubic-bezier(0.34,1.3,0.64,1);
+}
+.dot.active {
+  background: #4a1c8c;
+  width: 22px;
+  border-radius: 5px;
+}
+.dot:hover:not(.active) { background: #8b6fd4; transform: scale(1.2); }
+
+/* ───── Card background themes ───── */
+.bg-pop    { background: linear-gradient(155deg, #cdb8ff 0%, #a088e8 100%); }
+.bg-vinyl  { background: linear-gradient(155deg, #2a1360 0%, #5a30b0 100%); }
+.bg-hyper  { background: linear-gradient(155deg, #313150 0%, #6b6b9e 100%); }
+.bg-elec   { background: linear-gradient(155deg, #0d0525 0%, #7b2fbf 100%); }
+.bg-hiphop { background: linear-gradient(155deg, #3a0a6e 0%, #9040cf 100%); }
+.bg-rnb    { background: linear-gradient(155deg, #8c1a45 0%, #cf3b7b 100%); }
+.bg-jazz   { background: linear-gradient(155deg, #0a2040 0%, #3b8ccf 100%); }
+.bg-dance  { background: linear-gradient(155deg, #5c0a1a 0%, #cf5070 100%); }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Discover Music</h1>
+  <p>Click arrows or drag to explore genres</p>
+</div>
+
+<div class="carousel-wrapper" id="carousel">
+  <svg class="arc-base" viewBox="-650 -260 1300 520" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    <!-- Inner ring (r=750, tighter &amp; lower) -->
+    <path d="M -510 270 A 750 750 0 0 1 510 270"
+          fill="none" stroke="#c4b0f0" stroke-opacity="0.22" stroke-width="10" stroke-linecap="round"/>
+    <!-- Middle ring (r=820, the main track) -->
+    <path d="M -580 240 A 820 820 0 0 1 580 240"
+          fill="none" stroke="#c4b0f0" stroke-opacity="0.28" stroke-width="18" stroke-linecap="round"/>
+    <!-- Outer ring (r=890, flatter &amp; wider) -->
+    <path d="M -620 182 A 890 890 0 0 1 620 182"
+          fill="none" stroke="#c4b0f0" stroke-opacity="0.15" stroke-width="14" stroke-linecap="round"/>
+  </svg>
+
+  <button class="nav-btn left" id="prevBtn" aria-label="Previous">
+    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+  </button>
+  <button class="nav-btn right" id="nextBtn" aria-label="Next">
+    <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg>
+  </button>
+
+  <div class="cards-container" id="cardsContainer"></div>
+
+  <div class="dots-container" id="dotsContainer"></div>
+</div>
+
+<script>
+/* ──────────────────────────────────────────
+   Card data
+────────────────────────────────────────── */
+const CARDS = [
+  {
+    title: 'Pop', tags: ['Pop', 'Melody'], bgClass: 'bg-pop',
+    cover: `<defs><linearGradient id="g0" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ede0ff"/><stop offset="100%" stop-color="#b090f0"/></linearGradient></defs>
+      <rect width="188" height="156" fill="url(#g0)"/>
+      <ellipse cx="94" cy="110" rx="52" ry="64" fill="rgba(255,255,255,0.18)"/>
+      <circle cx="94" cy="52" r="32" fill="rgba(255,255,255,0.22)"/>
+      <ellipse cx="94" cy="45" rx="14" ry="10" fill="rgba(210,180,255,0.5)"/>
+      <circle cx="72" cy="30" r="6" fill="rgba(255,210,240,0.6)"/>
+      <circle cx="118" cy="35" r="4" fill="rgba(200,160,255,0.6)"/>`
+  },
+  {
+    title: 'Cover', tags: [], isNew: true, bgClass: 'bg-vinyl',
+    cover: `<defs><radialGradient id="g1" cx="50%" cy="50%"><stop offset="0%" stop-color="#6030b0"/><stop offset="100%" stop-color="#1a0840"/></radialGradient></defs>
+      <rect width="188" height="156" fill="url(#g1)"/>
+      <circle cx="94" cy="78" r="62" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="10"/>
+      <circle cx="94" cy="78" r="44" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6"/>
+      <circle cx="94" cy="78" r="28" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="4"/>
+      <circle cx="94" cy="78" r="10" fill="rgba(255,255,255,0.25)"/>
+      <circle cx="94" cy="78" r="4"  fill="rgba(255,255,255,0.5)"/>`
+  },
+  {
+    title: 'Hyperpop', tags: ['Dance', 'Club'], isNew: true, bgClass: 'bg-hyper',
+    cover: `<defs><linearGradient id="g2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#555570"/><stop offset="100%" stop-color="#2a2a45"/></linearGradient></defs>
+      <rect width="188" height="156" fill="url(#g2)"/>
+      <circle cx="94" cy="60" r="36" fill="rgba(255,255,255,0.08)"/>
+      <circle cx="94" cy="60" r="24" fill="rgba(255,255,255,0.1)"/>
+      <rect x="70" y="95" width="48" height="3" rx="2" fill="rgba(255,255,255,0.18)"/>
+      <rect x="60" y="105" width="68" height="2" rx="1" fill="rgba(255,255,255,0.12)"/>
+      <rect x="75" y="115" width="38" height="2" rx="1" fill="rgba(255,255,255,0.1)"/>`
+  },
+  {
+    title: 'Electronic', tags: ['EDM', 'Synth'], bgClass: 'bg-elec',
+    cover: `<defs><linearGradient id="g3" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#0d0525"/><stop offset="100%" stop-color="#9040d8"/></linearGradient></defs>
+      <rect width="188" height="156" fill="url(#g3)"/>
+      <path d="M0,90 Q24,60 47,90 Q70,120 94,90 Q118,60 141,90 Q164,120 188,90" fill="none" stroke="rgba(180,120,255,0.5)" stroke-width="2"/>
+      <path d="M0,110 Q24,80 47,110 Q70,140 94,110 Q118,80 141,110 Q164,140 188,110" fill="none" stroke="rgba(150,90,255,0.35)" stroke-width="2"/>
+      <path d="M0,70 Q24,40 47,70 Q70,100 94,70 Q118,40 141,70 Q164,100 188,70" fill="none" stroke="rgba(200,160,255,0.3)" stroke-width="2"/>
+      <circle cx="30" cy="35" r="6" fill="rgba(180,120,255,0.5)"/>
+      <circle cx="158" cy="45" r="8" fill="rgba(140,80,255,0.4)"/>`
+  },
+  {
+    title: 'Hip-Hop', tags: ['Rap', 'Beat'], bgClass: 'bg-hiphop',
+    cover: `<defs><radialGradient id="g4" cx="30%" cy="70%"><stop offset="0%" stop-color="#ff6ba8"/><stop offset="60%" stop-color="#8b1f9e"/><stop offset="100%" stop-color="#3d0a5c"/></radialGradient></defs>
+      <rect width="188" height="156" fill="url(#g4)"/>
+      <circle cx="35"  cy="40"  r="18" fill="rgba(255,100,180,0.35)"/>
+      <circle cx="155" cy="75"  r="26" fill="rgba(200,100,255,0.25)"/>
+      <circle cx="80"  cy="125" r="20" fill="rgba(255,150,100,0.25)"/>
+      <circle cx="160" cy="130" r="12" fill="rgba(255,200,100,0.3)"/>`
+  },
+  {
+    title: 'R&amp;B', tags: ['Soul', 'Groove'], bgClass: 'bg-rnb',
+    cover: `<defs><linearGradient id="g5" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#9b2040"/><stop offset="100%" stop-color="#ff90b0"/></linearGradient></defs>
+      <rect width="188" height="156" fill="url(#g5)"/>
+      <line x1="94" y1="0"   x2="20"  y2="156" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
+      <line x1="94" y1="0"   x2="94"  y2="156" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
+      <line x1="94" y1="0"   x2="168" y2="156" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
+      <circle cx="94" cy="10" r="9" fill="rgba(255,255,200,0.8)"/>
+      <circle cx="94" cy="10" r="16" fill="rgba(255,255,200,0.2)"/>`
+  },
+  {
+    title: 'Jazz', tags: ['Live', 'Classic'], bgClass: 'bg-jazz',
+    cover: `<defs><linearGradient id="g6" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0a2040"/><stop offset="100%" stop-color="#3b90cf"/></linearGradient></defs>
+      <rect width="188" height="156" fill="url(#g6)"/>
+      <rect x="28" y="38" width="132" height="82" rx="8" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+      <line x1="28" y1="70"  x2="160" y2="70"  stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+      <line x1="28" y1="90"  x2="160" y2="90"  stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+      <line x1="28" y1="110" x2="160" y2="110" stroke="rgba(255,255,255,0.1)"  stroke-width="1"/>
+      <circle cx="50" cy="54" r="7"  fill="rgba(255,255,255,0.2)"/>
+      <circle cx="94" cy="54" r="5"  fill="rgba(255,255,255,0.15)"/>
+      <circle cx="138" cy="54" r="7" fill="rgba(255,255,255,0.2)"/>`
+  },
+  {
+    title: 'Dance', tags: ['Club', 'Energy'], bgClass: 'bg-dance',
+    cover: `<defs><radialGradient id="g7" cx="50%" cy="40%"><stop offset="0%" stop-color="#cf5070"/><stop offset="100%" stop-color="#3c0a14"/></radialGradient></defs>
+      <rect width="188" height="156" fill="url(#g7)"/>
+      <circle cx="94" cy="78" r="55" fill="none" stroke="rgba(255,100,150,0.4)" stroke-width="1.5" stroke-dasharray="6,5"/>
+      <circle cx="94" cy="78" r="38" fill="none" stroke="rgba(200,80,120,0.35)" stroke-width="1.5" stroke-dasharray="4,4"/>
+      <circle cx="94" cy="78" r="18" fill="rgba(255,100,130,0.28)"/>
+      <circle cx="94" cy="78" r="7"  fill="rgba(255,200,200,0.7)"/>`
+  }
+];
+
+/* ──────────────────────────────────────────
+   Fan layout parameters
+────────────────────────────────────────── */
+const RADIUS     = 820;
+const ANGLE_STEP = 17;
+const TOTAL      = CARDS.length;
+
+/* ──────────────────────────────────────────
+   Animation state
+   offset: continuous float in "card-slot" units (0 = card 0 at center)
+   velocity: cards per animation frame, accumulates from wheel events
+   targetOffset: non-null while spring-navigating via button/dot/click
+────────────────────────────────────────── */
+let offset       = 0;
+let velocity     = 0;
+let targetOffset = null;
+let rafId        = null;
+let mouseFrac    = 0;
+
+const FRICTION        = 0.89;   // per-frame velocity decay (higher = longer glide)
+const SNAP_SPRING     = 0.16;   // snap attraction strength
+const SNAP_THRESHOLD  = 0.012;  // velocity below which snap spring kicks in
+const MAX_VEL         = 0.65;   // max cards/frame (prevents runaway)
+const WHEEL_SCALE     = 0.0010; // deltaY → velocity  (100 px ≈ 1 card travel)
+const GOTO_SPRING     = 0.15;   // spring constant for button/dot navigation
+
+/* ─── Helpers ─── */
+function getActiveIndex() {
+  return ((Math.round(offset) % TOTAL) + TOTAL) % TOTAL;
+}
+
+// Wrap rel into the range (-TOTAL/2, TOTAL/2]
+function wrapRel(rel) {
+  return rel - Math.round(rel / TOTAL) * TOTAL;
+}
+
+/* ─── Build DOM ─── */
+const container     = document.getElementById('cardsContainer');
+const dotsContainer = document.getElementById('dotsContainer');
+
+CARDS.forEach((_, i) => {
+  const dot = document.createElement('div');
+  dot.className = 'dot' + (i === 0 ? ' active' : '');
+  dot.addEventListener('click', () => goTo(i));
+  dotsContainer.appendChild(dot);
+});
+
+const cardEls = CARDS.map((data, i) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.index = i;
+
+  const body = document.createElement('div');
+  body.className = `card-body ${data.bgClass}`;
+
+  const cover = document.createElement('div');
+  cover.className = 'card-cover';
+  cover.innerHTML = `<svg viewBox="0 0 188 156" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">${data.cover}</svg>`;
+
+  const playBtn = document.createElement('div');
+  playBtn.className = 'play-btn';
+  playBtn.innerHTML = '<div class="play-icon"></div>';
+  cover.appendChild(playBtn);
+
+  const info = document.createElement('div');
+  info.className = 'card-info';
+
+  const title = document.createElement('div');
+  title.className = 'card-title';
+  title.innerHTML = data.title;
+
+  const tagsEl = document.createElement('div');
+  tagsEl.className = 'card-tags';
+  (data.tags || []).forEach(t => {
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = t;
+    tagsEl.appendChild(tag);
+  });
+
+  info.appendChild(title);
+  info.appendChild(tagsEl);
+
+  if (data.isNew) {
+    const badge = document.createElement('div');
+    badge.className = 'badge-new';
+    badge.textContent = 'New';
+    info.appendChild(badge);
+  }
+
+  body.appendChild(cover);
+  body.appendChild(info);
+  card.appendChild(body);
+  container.appendChild(card);
+
+  card.addEventListener('click', () => {
+    if (i !== getActiveIndex()) goTo(i);
+  });
+
+  return card;
+});
+
+/* ──────────────────────────────────────────
+   DOM caches — avoid redundant style mutations every frame
+────────────────────────────────────────── */
+const dotEls          = Array.from(dotsContainer.children);
+const cachedZi        = new Array(TOTAL).fill(-999); // sentinel forces first write
+let   cachedActiveIdx = -1;
+
+/* ──────────────────────────────────────────
+   Compute transform for a continuous relative position
+────────────────────────────────────────── */
+function calcTransform(rel) {
+  const rad   = (rel * ANGLE_STEP * Math.PI) / 180;
+  const x     = RADIUS * Math.sin(rad);
+  const y     = RADIUS * (1 - Math.cos(rad));
+  const rot   = rel * ANGLE_STEP;
+  const abs   = Math.abs(rel);
+  const scale = Math.max(0.38, 1 - abs * 0.125);
+  const zi    = Math.round(50 - abs * 10);
+  const op    = Math.max(0, 1 - abs * 0.18);
+  return { x, y, rot, scale, zi, op };
+}
+
+/* ──────────────────────────────────────────
+   Render — called every animation frame
+   Optimisations:
+     • translate3d forces GPU compositing layer
+     • skewX encodes velocity magnitude → visual "lean" that feels like higher fps
+     • zIndex / className writes are guarded by cached values to avoid repaints
+────────────────────────────────────────── */
+function renderCards() {
+  const active    = getActiveIndex();
+  const tiltExtra = mouseFrac * 4;
+  // Lean cards in the direction of travel; clamp so it never looks broken
+  const skew      = Math.max(-15, Math.min(15, velocity * 22));
+
+  cardEls.forEach((card, i) => {
+    const rel      = wrapRel(i - offset);
+    const { x, y, rot, scale, zi, op } = calcTransform(rel);
+    const tilt     = Math.abs(rel) < 0.5 ? tiltExtra : tiltExtra * 0.3;
+    // Cards near centre get the full lean; far cards taper off
+    const cardSkew = skew * Math.max(0, 1 - Math.abs(rel) * 0.42);
+
+    card.style.transform = `translate3d(${x}px,${y}px,0) rotate(${rot + tilt}deg) skewX(${cardSkew}deg) scale(${scale})`;
+    card.style.opacity   = String(op);
+
+    // Only touch zIndex when it actually changes — each write is expensive
+    if (cachedZi[i] !== zi) {
+      card.style.zIndex = String(zi);
+      cachedZi[i]       = zi;
+    }
+
+    const want = i === active ? 'card active' : 'card';
+    if (card.className !== want) card.className = want;
+  });
+
+  // Dot indicators: only re-write when active card changes
+  if (cachedActiveIdx !== active) {
+    dotEls.forEach((dot, i) => {
+      dot.className = i === active ? 'dot active' : 'dot';
+    });
+    cachedActiveIdx = active;
+  }
+}
+
+/* ──────────────────────────────────────────
+   Animation loop (RAF-driven, self-stopping)
+────────────────────────────────────────── */
+function schedule() {
+  if (!rafId) rafId = requestAnimationFrame(step);
+}
+
+function step() {
+  if (targetOffset !== null) {
+    // Spring toward a discrete target (button / dot / card click)
+    const d = targetOffset - offset;
+    if (Math.abs(d) < 0.0008) {
+      offset = targetOffset;
+      targetOffset = null;
+      renderCards();
+      rafId = null;
+      return;
+    }
+    offset += d * GOTO_SPRING;
+  } else {
+    // Inertia: apply velocity, then friction
+    // When velocity is low enough, add a snap spring toward the nearest card slot
+    if (Math.abs(velocity) < SNAP_THRESHOLD) {
+      velocity += (Math.round(offset) - offset) * SNAP_SPRING;
+    }
+    offset   += velocity;
+    velocity *= FRICTION;
+
+    // Hard-stop once essentially at rest on a slot
+    if (Math.abs(velocity) < 0.0002 && Math.abs(offset - Math.round(offset)) < 0.0008) {
+      offset   = Math.round(offset);
+      velocity = 0;
+      renderCards();
+      rafId = null;
+      return;
+    }
+  }
+
+  renderCards();
+  rafId = requestAnimationFrame(step);
+}
+
+/* ──────────────────────────────────────────
+   Navigation — spring to a named card index
+────────────────────────────────────────── */
+function goTo(index) {
+  // Find the nearest offset value where `index` would be at center
+  const base     = Math.round(offset);
+  const baseIdx  = ((base % TOTAL) + TOTAL) % TOTAL;
+  let   delta    = index - baseIdx;
+  if (delta >  TOTAL / 2) delta -= TOTAL;
+  if (delta < -TOTAL / 2) delta += TOTAL;
+  targetOffset = base + delta;
+  velocity     = 0;
+  schedule();
+}
+
+function prev() { goTo((getActiveIndex() - 1 + TOTAL) % TOTAL); }
+function next() { goTo((getActiveIndex() + 1)          % TOTAL); }
+
+/* ──────────────────────────────────────────
+   Controls
+────────────────────────────────────────── */
+document.getElementById('prevBtn').addEventListener('click', prev);
+document.getElementById('nextBtn').addEventListener('click', next);
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft')  prev();
+  if (e.key === 'ArrowRight') next();
+});
+
+// Drag / swipe
+let dragStartX = null;
+const DRAG_THRESHOLD = 60;
+
+container.addEventListener('mousedown', e => { dragStartX = e.clientX; });
+document.addEventListener('mouseup', e => {
+  if (dragStartX === null) return;
+  const dx = e.clientX - dragStartX;
+  if (Math.abs(dx) > DRAG_THRESHOLD) dx > 0 ? prev() : next();
+  dragStartX = null;
+});
+container.addEventListener('touchstart', e => { dragStartX = e.touches[0].clientX; }, { passive: true });
+container.addEventListener('touchend', e => {
+  if (dragStartX === null) return;
+  const dx = e.changedTouches[0].clientX - dragStartX;
+  if (Math.abs(dx) > 40) dx > 0 ? prev() : next();
+  dragStartX = null;
+});
+
+// Wheel — velocity-accumulating, direction & speed follow scroll input
+// scroll down (deltaY > 0) → positive velocity → clockwise (next cards)
+// scroll up   (deltaY < 0) → negative velocity → counter-clockwise (prev cards)
+document.addEventListener('wheel', e => {
+  e.preventDefault();
+  targetOffset = null; // cancel any spring target, switch to momentum mode
+  velocity += e.deltaY * WHEEL_SCALE;
+  velocity  = Math.max(-MAX_VEL, Math.min(MAX_VEL, velocity));
+  schedule();
+}, { passive: false });
+
+// Mouse-position subtle tilt — stored and merged into every renderCards() call
+document.addEventListener('mousemove', e => {
+  mouseFrac = (e.clientX - window.innerWidth / 2) / (window.innerWidth / 2);
+  if (!rafId) renderCards(); // repaint tilt when loop is idle
+});
+
+/* ──────────────────────────────────────────
+   Init
+────────────────────────────────────────── */
+renderCards();
+</script>
+</body>
+</html>

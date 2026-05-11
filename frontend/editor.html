@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>编辑器 - 知识库</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563a8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20'/%3E%3Cpath d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'/%3E%3Cline x1='9' y1='7' x2='15' y2='7'/%3E%3Cline x1='9' y1='11' x2='13' y2='11'/%3E%3C/svg%3E">
+  <link rel="stylesheet" data-name="vs/editor/editor.main"
+    href="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/editor/editor.main.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --tb-bg: #1e1e1e; --tb-border: #333;
+      --badge-bg: #0078d4; --badge-color: #fff;
+      --fn-color: #ccc; --btn-bg: #3c3c3c; --btn-color: #ccc;
+      --body-bg: #1e1e1e; --status-bg: #007acc;
+      --color-brand: #0078d4; --color-error: #f48771;
+    }
+    .light {
+      --tb-bg: #f3f3f3; --tb-border: #d8d8d8;
+      --fn-color: #222; --btn-bg: #e0e0e0; --btn-color: #444;
+      --body-bg: #f5f5f5; --status-bg: #007acc;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+      background: var(--body-bg); color: #d4d4d4;
+      height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      height: 48px; background: var(--tb-bg); border-bottom: 1px solid var(--tb-border);
+      display: flex; align-items: center; padding: 0 16px; user-select: none; flex-shrink: 0; gap: 12px;
+    }
+    .tb-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+    .tb-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    .back-btn {
+      width: 32px; height: 32px; border-radius: 8px; border: none; flex-shrink: 0;
+      background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.65);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 16px; transition: background 0.15s, color 0.15s;
+    }
+    .back-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+    .light .back-btn { background: rgba(0,0,0,0.06); color: #666; }
+    .light .back-btn:hover { background: rgba(0,0,0,0.1); color: #222; }
+
+    .file-badge {
+      display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+      border-radius: 5px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+      background: var(--badge-bg); color: var(--badge-color); flex-shrink: 0; text-transform: uppercase;
+    }
+    .file-name {
+      font-size: 14px; font-weight: 500; color: var(--fn-color);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .unsaved-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #e8a838;
+      flex-shrink: 0; opacity: 0; transition: opacity 0.2s;
+    }
+    .unsaved-dot.show { opacity: 1; }
+
+    .lang-pill {
+      font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.45);
+      background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 5px;
+    }
+    .light .lang-pill { color: #888; background: rgba(0,0,0,0.05); }
+    .shortcut-hint { font-size: 11px; color: #666; }
+
+    .tbtn {
+      height: 30px; padding: 0 14px; border-radius: 6px; border: none;
+      font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .tbtn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .tbtn-primary { background: var(--color-brand); color: #fff; }
+    .tbtn-primary:not(:disabled):hover { background: #1584d8; }
+    .tbtn-ghost { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
+    .tbtn-ghost:hover { background: rgba(255,255,255,0.14); color: #fff; }
+    .tbtn-icon { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); width: 32px; padding: 0; font-size: 16px; }
+    .tbtn-icon:hover { background: rgba(255,255,255,0.14); color: #fff; }
+    .tbtn-close { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
+    .tbtn-close:hover { background: rgba(192,50,50,0.35); color: #ff7b72; }
+    .light .tbtn-ghost, .light .tbtn-icon, .light .tbtn-close { background: #e0e0e0; color: #555; }
+    .light .tbtn-ghost:hover, .light .tbtn-icon:hover { background: #d0d0d0; }
+    .light .tbtn-close:hover { background: #fcd9d9; color: #c0392b; }
+
+    /* ── Editor ── */
+    #editor-wrap { flex: 1; overflow: hidden; position: relative; }
+
+    /* ── Status bar ── */
+    .statusbar {
+      height: 22px; background: var(--status-bg); color: rgba(255,255,255,0.9);
+      display: flex; align-items: center; padding: 0 14px; gap: 16px; font-size: 11px; flex-shrink: 0;
+    }
+    .statusbar-sep { opacity: 0.3; margin: 0 -4px; }
+
+    /* ── Overlay ── */
+    .overlay {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      background: var(--body-bg); z-index: 50; transition: opacity 0.3s;
+    }
+    .overlay.hidden { opacity: 0; pointer-events: none; }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid #3a3a3a; border-top-color: var(--color-brand);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    .light .spinner { border-color: #ddd; border-top-color: var(--color-brand); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .overlay-msg { font-size: 14px; color: #999; text-align: center; max-width: 440px; line-height: 1.6; }
+    .overlay-msg.error { color: var(--color-error); }
+    .overlay-icon { font-size: 40px; margin-bottom: 4px; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(8px);
+      background: #323232; color: #fff; padding: 9px 22px; border-radius: 8px;
+      font-size: 13px; pointer-events: none; opacity: 0;
+      transition: opacity 0.2s, transform 0.2s; z-index: 100; white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .light .toast { background: #222; }
+
+    /* ── Read-only banner ── */
+    .readonly-banner {
+      height: 30px; background: #c23616; color: #fff; display: flex;
+      align-items: center; justify-content: center; font-size: 12px; font-weight: 500;
+      gap: 6px; flex-shrink: 0; padding: 0 10px;
+    }
+    .readonly-banner.hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="tb-left">
+      <button class="back-btn" id="btnBack" title="返回知识库">←</button>
+      <span class="file-badge" id="fileBadge">···</span>
+      <span class="file-name" id="fileName">加载中...</span>
+      <span class="unsaved-dot" id="unsavedDot" title="有未保存的更改"></span>
+    </div>
+    <div class="tb-right">
+      <span class="lang-pill" id="langPill"></span>
+      <span class="shortcut-hint" id="shortcutHint">Ctrl+S 保存</span>
+      <button class="tbtn tbtn-icon" id="btnTheme" title="切换明暗主题">🌙</button>
+      <button class="tbtn tbtn-primary" id="btnSave" disabled>保存</button>
+    </div>
+  </div>
+
+  <!-- Read-only banner -->
+  <div class="readonly-banner hidden" id="readonlyBanner">
+    ⚠ 此文件类型为只读模式（仅支持查看，不支持编辑）
+  </div>
+
+  <!-- Monaco Editor container -->
+  <div id="editor-wrap">
+    <div class="overlay" id="overlay">
+      <div class="spinner" id="ovSpinner"></div>
+      <div class="overlay-msg" id="ovMsg">正在加载编辑器...</div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <span id="statusLang">纯文本</span>
+    <span class="statusbar-sep">·</span>
+    <span id="statusCursor">行 1, 列 1</span>
+    <span class="statusbar-sep">·</span>
+    <span>UTF-8</span>
+    <span class="statusbar-sep">·</span>
+    <span id="statusLines">0 行</span>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    var require = { paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+  <script>
+'use strict';
+
+// ── Config ──
+const API = window.location.protocol === 'file:'
+  ? 'http://localhost:8000/api'
+  : `${window.location.origin}/api`;
+
+const READONLY_EXT = new Set(['.db', '.sqlite', '.sqlite3', '.db3', '.dump', '.dmp', '.bak', '.bin', '.dat', '.docx', '.xlsx', '.xls', '.pptx']);
+
+const LANG_MAP = {
+  '.sql': 'sql', '.mysql': 'sql', '.pgsql': 'sql',
+  '.html': 'html', '.htm': 'html', '.xhtml': 'html', '.svg': 'html',
+  '.css': 'css', '.scss': 'css', '.less': 'css',
+  '.js': 'javascript', '.jsx': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
+  '.ts': 'typescript', '.tsx': 'typescript',
+  '.json': 'json', '.jsonc': 'json', '.json5': 'json',
+  '.xml': 'xml', '.xsd': 'xml', '.xslt': 'xml', '.csproj': 'xml', '.config': 'xml',
+  '.yaml': 'yaml', '.yml': 'yaml',
+  '.toml': 'ini', '.ini': 'ini', '.cfg': 'ini', '.conf': 'ini', '.properties': 'ini', '.env': 'ini',
+  '.md': 'markdown', '.markdown': 'markdown', '.mdx': 'markdown',
+  '.sh': 'shell', '.bash': 'shell', '.zsh': 'shell', '.fish': 'shell',
+  '.bat': 'bat', '.cmd': 'bat',
+  '.ps1': 'powershell', '.psm1': 'powershell', '.psd1': 'powershell',
+  '.py': 'python', '.pyw': 'python', '.pyi': 'python',
+  '.java': 'java', '.jsp': 'java',
+  '.kt': 'kotlin', '.kts': 'kotlin', '.gradle': 'kotlin', '.groovy': 'kotlin',
+  '.swift': 'swift',
+  '.c': 'c', '.h': 'c',
+  '.cpp': 'cpp', '.cc': 'cpp', '.cxx': 'cpp', '.hpp': 'cpp',
+  '.cs': 'csharp', '.vb': 'vb',
+  '.go': 'go', '.rs': 'rust', '.rb': 'ruby', '.php': 'php',
+  '.r': 'r', '.R': 'r', '.jl': 'julia',
+  '.lua': 'lua', '.pl': 'perl', '.pm': 'perl',
+  '.dart': 'dart', '.scala': 'scala', '.ex': 'elixir', '.exs': 'elixir',
+  '.dockerfile': 'dockerfile',
+  '.tf': 'hcl', '.hcl': 'hcl',
+  '.txt': 'plaintext', '.log': 'plaintext', '.csv': 'plaintext', '.tsv': 'plaintext',
+  '.db': 'plaintext', '.sqlite': 'plaintext', '.dump': 'plaintext', '.dat': 'plaintext',
+  '.docx': 'plaintext', '.bin': 'plaintext',
+};
+
+const LANG_LABELS = {
+  sql: 'SQL', html: 'HTML', css: 'CSS', scss: 'SCSS',
+  javascript: 'JavaScript', typescript: 'TypeScript',
+  json: 'JSON', xml: 'XML', markdown: 'Markdown', yaml: 'YAML', ini: 'INI/TOML',
+  shell: 'Shell', bat: 'Batch', powershell: 'PowerShell',
+  python: 'Python', java: 'Java', kotlin: 'Kotlin', swift: 'Swift',
+  c: 'C', cpp: 'C++', csharp: 'C#', vb: 'VB.NET',
+  go: 'Go', rust: 'Rust', ruby: 'Ruby', php: 'PHP',
+  r: 'R', julia: 'Julia', lua: 'Lua', perl: 'Perl',
+  dart: 'Dart', scala: 'Scala', elixir: 'Elixir',
+  dockerfile: 'Dockerfile', hcl: 'Terraform/HCL', groovy: 'Groovy',
+  plaintext: '纯文本',
+};
+
+// ── State ──
+const params = new URLSearchParams(window.location.search);
+const fileId = params.get('file_id') || params.get('fileId');
+const tokenFromUrl = params.get('token');
+const token = tokenFromUrl || localStorage.getItem('kb_token');
+if (tokenFromUrl) localStorage.setItem('kb_token', tokenFromUrl);
+let editor = null;
+let originalContent = '';
+let fileType = '.txt';
+let isSaving = false;
+let isDark = true;
+let isReadOnly = false;
+let heartbeatTimer = null;
+let pollTimer = null;
+let lockerInfo = null;
+
+// ── Helpers ──
+function showToast(msg, duration = 2200) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function showOverlay(loading, msg = '') {
+  const overlay = document.getElementById('overlay');
+  const spinner = document.getElementById('ovSpinner');
+  const text = document.getElementById('ovMsg');
+  overlay.classList.remove('hidden');
+  if (loading) {
+    spinner.style.display = '';
+    text.className = 'overlay-msg';
+    text.textContent = msg || '正在加载文件...';
+  } else {
+    spinner.style.display = 'none';
+    text.className = 'overlay-msg error';
+    text.innerHTML = `<div class="overlay-icon">⚠️</div><div style="margin-top:6px">${msg}</div>`;
+  }
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').classList.add('hidden');
+}
+
+function applyDark(dark) {
+  isDark = dark;
+  document.body.classList.toggle('light', !dark);
+  document.getElementById('btnTheme').textContent = dark ? '🌙' : '☀️';
+  if (editor) monaco.editor.setTheme(dark ? 'vs-dark' : 'vs');
+}
+
+// ── Lock & Sync ──
+async function acquireLock() {
+  try {
+    const res = await fetch(`${API}/files/${fileId}/lock`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    return { success: !!data.ok, locker: data.locker };
+  } catch (e) {
+    return { success: false };
+  }
+}
+
+function startHeartbeat() {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(async () => {
+    if (!editor || isSaving || isReadOnly) return;
+    try {
+      await fetch(`${API}/files/${fileId}/heartbeat`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: editor.getValue() }),
+      });
+    } catch (e) {
+      console.error('Heartbeat failed', e);
+    }
+  }, 3000);
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    if (!editor || !isReadOnly) return;
+    try {
+      const res = await fetch(`${API}/files/${fileId}/content`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const newContent = typeof data.content === 'string' ? data.content : JSON.stringify(data.content);
+        if (newContent !== editor.getValue()) {
+          const pos = editor.getPosition();
+          editor.setValue(newContent);
+          editor.setPosition(pos);
+          updateLines();
+        }
+        if (!data.locked_by && lockerInfo) {
+          lockerInfo = null;
+          showToast('锁定已解除，刷新页面可获取编辑权');
+          document.getElementById('readonlyBanner').textContent = '锁定已解除，刷新页面可获取编辑权';
+        }
+      }
+    } catch (e) {
+      console.error('Poll failed', e);
+    }
+  }, 3000);
+}
+
+async function releaseLock() {
+  if (isReadOnly) return;
+  try {
+    await fetch(`${API}/files/${fileId}/lock`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  } catch (e) {}
+}
+
+// ── Load file ──
+async function loadFile() {
+  if (!fileId) {
+    showOverlay(false, '缺少文件 ID，请从知识库的文件列表中点击编辑按钮打开此页面。');
+    document.getElementById('btnSave').style.display = 'none';
+    return;
+  }
+  if (!token) {
+    showOverlay(false, '尚未登录。请先在知识库中登录后，再打开此编辑器。');
+    document.getElementById('btnSave').style.display = 'none';
+    return;
+  }
+
+  try {
+    showOverlay(true, '正在检查锁定状态...');
+    const lockRes = await acquireLock();
+    
+    const listRes = await fetch(`${API}/files`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (listRes.status === 401) {
+      showOverlay(false, '登录已过期，请返回知识库重新登录。');
+      document.getElementById('btnSave').style.display = 'none';
+      return;
+    }
+    if (!listRes.ok) throw new Error(`获取文件列表失败 (${listRes.status})`);
+
+    const files = await listRes.json();
+    const file = files.find(f => f.id === fileId);
+    if (!file) {
+      showOverlay(false, '文件不存在或您没有访问权限。');
+      document.getElementById('btnSave').style.display = 'none';
+      return;
+    }
+
+    fileType = (file.type || '.txt').toLowerCase();
+    const ext = fileType.replace('.', '').toUpperCase() || 'TXT';
+    document.title = `${file.filename} — 知识库编辑器`;
+    document.getElementById('fileName').textContent = file.filename;
+    document.getElementById('fileBadge').textContent = ext;
+
+    lockerInfo = lockRes.locker;
+    isReadOnly = !lockRes.success || READONLY_EXT.has(fileType);
+
+    if (isReadOnly) {
+      document.getElementById('readonlyBanner').classList.remove('hidden');
+      if (lockerInfo) {
+        document.getElementById('readonlyBanner').innerHTML = `🔒 <strong>${lockerInfo.name} (@${lockerInfo.username})</strong> 正在编辑此文件，您处于实时只读模式`;
+      } else {
+        document.getElementById('readonlyBanner').textContent = '⚠ 此文件为只读模式（仅支持查看，不支持编辑）';
+      }
+      document.getElementById('btnSave').style.display = 'none';
+    }
+
+    const lang = LANG_MAP[fileType] || 'plaintext';
+    const langLabel = LANG_LABELS[lang] || lang;
+    document.getElementById('langPill').textContent = langLabel;
+    document.getElementById('statusLang').textContent = langLabel;
+
+    showOverlay(true, '正在加载内容...');
+    const contentRes = await fetch(`${API}/files/${fileId}/content`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!contentRes.ok) throw new Error(`获取内容失败 (${contentRes.status})`);
+
+    const data = await contentRes.json();
+    let content = typeof data.content === 'string' ? data.content : JSON.stringify(data.content);
+    originalContent = content;
+
+    initMonaco(content, lang);
+
+    if (!isReadOnly) startHeartbeat();
+    else if (lockerInfo) startPolling();
+
+  } catch (e) {
+    showOverlay(false, `加载失败：${e.message}`);
+    document.getElementById('btnSave').style.display = 'none';
+  }
+}
+
+function updateLines() {
+  const n = editor.getModel()?.getLineCount() || 0;
+  document.getElementById('statusLines').textContent = `${n} 行`;
+}
+
+function initMonaco(content, lang) {
+  require(['vs/editor/editor.main'], function () {
+    editor = monaco.editor.create(document.getElementById('editor-wrap'), {
+      value: content,
+      language: lang,
+      theme: isDark ? 'vs-dark' : 'vs',
+      readOnly: isReadOnly,
+      fontSize: 14,
+      lineHeight: 22,
+      fontFamily: '"Fira Code", "Cascadia Code", "JetBrains Mono", "Consolas", "Microsoft YaHei", monospace',
+      fontLigatures: true,
+      minimap: { enabled: true, scale: 1, showSlider: 'mouseover' },
+      scrollBeyondLastLine: false,
+      wordWrap: 'off',
+      automaticLayout: true,
+      tabSize: 2,
+      insertSpaces: true,
+      renderWhitespace: 'boundary',
+      smoothScrolling: true,
+      cursorBlinking: 'smooth',
+      cursorSmoothCaretAnimation: 'on',
+      bracketPairColorization: { enabled: true },
+      guides: { bracketPairs: true, indentation: true },
+      renderLineHighlight: 'all',
+      fixedOverflowWidgets: true,
+      padding: { top: 14, bottom: 14 },
+      suggest: { showStatusBar: true },
+      folding: true,
+      foldingStrategy: 'indentation',
+      showFoldingControls: 'mouseover',
+      overviewRulerBorder: false,
+    });
+
+    editor.onDidChangeCursorPosition(() => {
+      const pos = editor.getPosition();
+      document.getElementById('statusCursor').textContent = `行 ${pos.lineNumber}, 列 ${pos.column}`;
+    });
+
+    editor.onDidChangeModelContent(() => {
+      if (isReadOnly) return;
+      const changed = editor.getValue() !== originalContent;
+      document.getElementById('unsavedDot').classList.toggle('show', changed);
+      document.getElementById('btnSave').disabled = !changed || isSaving;
+    });
+
+    editor.onDidChangeModelContent(updateLines);
+    updateLines();
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveFile);
+    hideOverlay();
+    if (!isReadOnly) document.getElementById('btnSave').disabled = true;
+  });
+}
+
+async function saveFile() {
+  if (isSaving || !editor || isReadOnly) return;
+  isSaving = true;
+  const btn = document.getElementById('btnSave');
+  const origLabel = btn.textContent;
+  btn.textContent = '保存中...';
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/files/${fileId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: editor.getValue() }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(()=>({}))).detail || `HTTP ${res.status}`);
+    originalContent = editor.getValue();
+    document.getElementById('unsavedDot').classList.remove('show');
+    showToast('✓ 已保存并解锁');
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+  } catch (e) {
+    showToast(`保存失败：${e.message}`, 3500);
+  } finally {
+    isSaving = false;
+    btn.textContent = origLabel;
+    btn.disabled = editor ? (editor.getValue() === originalContent || isReadOnly) : true;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const savedTheme = localStorage.getItem('kb_theme');
+  applyDark(savedTheme !== 'light');
+  document.getElementById('btnSave').addEventListener('click', saveFile);
+  document.getElementById('btnTheme').addEventListener('click', () => {
+    const next = !isDark;
+    localStorage.setItem('kb_theme', next ? 'dark' : 'light');
+    applyDark(next);
+  });
+  document.getElementById('btnBack').addEventListener('click', async () => {
+    if (editor && editor.getValue() !== originalContent) {
+      if (!confirm('有未保存的更改，确定要离开吗？')) return;
+    }
+    await releaseLock();
+    window.close();
+  });
+  window.addEventListener('beforeunload', () => releaseLock());
+  if (navigator.platform && navigator.platform.startsWith('Mac')) {
+    document.getElementById('shortcutHint').textContent = '⌘S 保存';
+  }
+  loadFile();
+});
+  </script>
+</body>
+</html>

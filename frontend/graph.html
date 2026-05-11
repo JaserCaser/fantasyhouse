@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识关联图谱</title>
+  <style>
+    :root {
+      --color-bg: #fafaf8;
+      --color-bg-secondary: #f2f0ed;
+      --color-bg-card: #ffffff;
+      --color-bg-card-strong: #ffffff;
+      --color-text-primary: #2c2c2a;
+      --color-text-secondary: #7a7872;
+      --color-text-tertiary: #a8a6a0;
+      --color-text-inverse: #ffffff;
+      --color-brand: #2563a8;
+      --color-brand-hover: #3b7dd8;
+      --color-brand-light: #f0f4f8;
+      --color-border: rgba(0,0,0,0.07);
+      --color-border-light: rgba(0,0,0,0.04);
+      --color-border-strong: rgba(0,0,0,0.12);
+      --color-danger: #e04438;
+      --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+      --shadow-card-hover: 0 8px 30px rgba(0,0,0,0.08);
+      --shadow-soft: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+      --radius: 20px;
+      --radius-sm: 8px;
+      --ease-out: cubic-bezier(0.25, 0.1, 0.25, 1);
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --duration-fast: 150ms;
+      --duration-normal: 250ms;
+    }
+
+    [data-theme="dark"] {
+      --color-bg: #141412;
+      --color-bg-secondary: #1e1e1a;
+      --color-bg-card: #222220;
+      --color-bg-card-strong: #222220;
+      --color-text-primary: #e8e6e1;
+      --color-text-secondary: #9a9890;
+      --color-text-tertiary: #6a6862;
+      --color-text-inverse: #141412;
+      --color-brand: #4a9ae0;
+      --color-brand-hover: #6bb3f0;
+      --color-brand-light: #1e2a36;
+      --color-border: rgba(255,255,255,0.07);
+      --color-border-light: rgba(255,255,255,0.04);
+      --color-border-strong: rgba(255,255,255,0.12);
+      --color-danger: #f06050;
+      --shadow-card: 0 1px 3px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.1);
+      --shadow-card-hover: 0 8px 30px rgba(0,0,0,0.2);
+      --shadow-soft: 0 1px 3px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; }
+    body {
+      overflow: hidden;
+      font-family: -apple-system, "SF Pro Display", "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--color-text-primary);
+      background:
+        radial-gradient(circle at 18% 16%, rgba(37,99,168,0.08), transparent 26%),
+        radial-gradient(circle at 78% 12%, rgba(59,125,216,0.06), transparent 22%),
+        linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-secondary) 100%);
+      opacity: 0;
+      transform: scale(0.985) translateY(12px);
+      animation: graphPageIn 0.62s var(--ease-spring) forwards;
+    }
+
+    body.page-leaving {
+      animation: graphPageOut 0.32s ease forwards;
+    }
+
+    @keyframes graphPageIn {
+      from { opacity: 0; transform: scale(0.985) translateY(12px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes graphPageOut {
+      from { opacity: 1; transform: scale(1) translateY(0); }
+      to { opacity: 0; transform: scale(0.99) translateY(10px); }
+    }
+
+    .page {
+      display: grid;
+      grid-template-columns: 350px 1fr 360px;
+      gap: 18px;
+      height: 100%;
+      padding: 18px;
+      position: relative;
+    }
+
+    .page::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image: radial-gradient(circle, var(--color-text-tertiary) 0.5px, transparent 0.5px);
+      background-size: 40px 40px;
+      opacity: 0.12;
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+    }
+
+    .panel {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-radius: var(--radius);
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border-light);
+      box-shadow: var(--shadow-card-hover);
+      backdrop-filter: none;
+      overflow: hidden;
+      transition: transform var(--duration-normal) var(--ease-out), box-shadow var(--duration-normal) var(--ease-out), border-color var(--duration-fast) ease, background var(--duration-normal) ease;
+    }
+
+    .panel:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-card-hover);
+    }
+
+    .panel-head {
+      padding: 22px 22px 14px;
+      border-bottom: 1px solid var(--color-border-light);
+    }
+
+    .eyebrow {
+      font-size: 12px;
+      color: var(--color-brand);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+      line-height: 1.7;
+    }
+
+    .panel-body {
+      overflow: auto;
+      padding: 18px 22px 22px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      font-weight: 600;
+    }
+
+    .input,
+    .select,
+    .button,
+    .button-ghost,
+    .mini-button {
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+    }
+
+    .input,
+    .select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--color-border-strong);
+      background: var(--color-bg-card-strong);
+      color: var(--color-text-primary);
+      outline: none;
+      transition: border-color .2s ease, box-shadow .2s ease, background .25s ease;
+    }
+
+    .input:focus,
+    .select:focus {
+      border-color: var(--color-brand);
+      box-shadow: 0 0 0 3px rgba(37,99,168,0.15);
+    }
+    [data-theme="dark"] .input:focus,
+    [data-theme="dark"] .select:focus {
+      box-shadow: 0 0 0 3px rgba(74,154,224,0.2);
+    }
+
+    .button,
+    .button-ghost,
+    .mini-button {
+      cursor: pointer;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
+    }
+
+    .button:hover,
+    .button-ghost:hover,
+    .mini-button:hover {
+      transform: translateY(-1px);
+    }
+
+    .button {
+      width: 100%;
+      padding: 13px 16px;
+      border: 0;
+      font-weight: 700;
+      color: var(--color-text-inverse);
+      background: linear-gradient(135deg, var(--color-brand), var(--color-brand-hover));
+      box-shadow: 0 4px 16px rgba(37,99,168,0.25);
+    }
+    [data-theme="dark"] .button {
+      box-shadow: 0 4px 16px rgba(74,154,224,0.25);
+    }
+
+    .button-ghost,
+    .mini-button {
+      border: 1px solid var(--color-border-strong);
+      background: var(--color-bg-card-strong);
+      color: var(--color-text-primary);
+    }
+
+    .button-ghost:hover,
+    .mini-button:hover {
+      border-color: var(--color-border);
+      background: var(--color-bg-secondary);
+    }
+
+    .button-ghost {
+      width: 100%;
+      padding: 12px 14px;
+    }
+
+    .mini-button {
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+
+    .mini-button.danger {
+      color: var(--color-danger);
+      border-color: rgba(203, 77, 69, 0.18);
+      background: rgba(203, 77, 69, 0.06);
+    }
+    [data-theme="dark"] .mini-button.danger {
+      border-color: rgba(240, 96, 80, 0.24);
+      background: rgba(240, 96, 80, 0.08);
+    }
+
+    .hint,
+    .error,
+    .empty {
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .hint,
+    .empty { color: var(--color-text-secondary); }
+    .error {
+      color: var(--color-danger);
+      min-height: 18px;
+      margin-top: 6px;
+    }
+
+    .hint,
+    .empty { color: var(--color-text-secondary); }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 18px 0 12px;
+    }
+
+    .stat {
+      padding: 14px;
+      border-radius: var(--radius-md, 12px);
+      background: var(--color-bg-card-strong);
+      border: 1px solid var(--color-border-light);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 20px;
+      margin-bottom: 6px;
+    }
+
+    .stat span {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+    }
+
+    .stage {
+      position: relative;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.06));
+    }
+    [data-theme="dark"] .stage {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    }
+
+    .stage-topbar {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      top: 16px;
+      z-index: 4;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .badge,
+    .tool-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 10px 12px;
+      background: var(--color-bg-card-strong);
+      border: 1px solid var(--color-border-light);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .badge {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+    }
+
+    .tool-row {
+      flex-wrap: wrap;
+    }
+
+    #graphCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+
+    #graphCanvas.dragging {
+      cursor: grabbing;
+    }
+
+    #graphCanvas.linking {
+      cursor: crosshair;
+    }
+
+    .mode-toggle {
+      display: inline-flex;
+      gap: 4px;
+      padding: 3px;
+      border-radius: 999px;
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border-light);
+    }
+
+    .mode-button {
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 0;
+      background: transparent;
+      color: var(--color-text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      transition: background var(--duration-fast), color var(--duration-fast), box-shadow var(--duration-fast);
+    }
+
+    .mode-button.active {
+      background: var(--color-bg-card);
+      color: var(--color-brand);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .graph-menu {
+      position: absolute;
+      z-index: 7;
+      min-width: 170px;
+      padding: 6px;
+      border-radius: 12px;
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border-light);
+      box-shadow: var(--shadow-card-hover);
+      display: none;
+    }
+
+    .graph-menu.show {
+      display: grid;
+      gap: 4px;
+    }
+
+    .graph-menu button {
+      height: 32px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--color-text-primary);
+      text-align: left;
+      padding: 0 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .graph-menu button:hover {
+      background: var(--color-bg-secondary);
+    }
+
+    .tooltip {
+      position: absolute;
+      z-index: 5;
+      pointer-events: none;
+      min-width: 260px;
+      max-width: 320px;
+      padding: 14px 15px;
+      border-radius: 16px;
+      background: var(--color-bg-card-strong);
+      border: 1px solid var(--color-border-light);
+      box-shadow: var(--shadow-card-hover);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .12s ease, transform .12s ease;
+    }
+
+    .tooltip.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .tooltip-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      word-break: break-all;
+    }
+
+    .tooltip-meta {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      line-height: 1.7;
+    }
+
+    .tooltip-meta strong {
+      color: var(--color-text-primary);
+    }
+
+    .section {
+      margin-bottom: 22px;
+    }
+
+    .section:last-child {
+      margin-bottom: 0;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .section-head h3 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .section-note {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+    }
+
+    .section-tools {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .compact-input,
+    .compact-select {
+      min-width: 0;
+      height: 34px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg-card);
+      color: var(--color-text-primary);
+      font-size: 12px;
+      outline: none;
+      transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+
+    .compact-input {
+      padding: 0 10px;
+    }
+
+    .compact-select {
+      padding: 0 8px;
+    }
+
+    .compact-input:focus,
+    .compact-select:focus {
+      border-color: var(--color-brand);
+      box-shadow: 0 0 0 3px rgba(37,99,168,0.12);
+    }
+
+    [data-theme="dark"] .compact-input:focus,
+    [data-theme="dark"] .compact-select:focus {
+      box-shadow: 0 0 0 3px rgba(74,154,224,0.18);
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .list-footer {
+      margin-top: 10px;
+    }
+
+    .card {
+      padding: 14px;
+      border-radius: 16px;
+      background: var(--color-bg-card-strong);
+      border: 1px solid var(--color-border-light);
+      box-shadow: var(--shadow-soft);
+      transition: transform var(--duration-fast) var(--ease-out), border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-card-hover);
+      border-color: var(--color-border-light);
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
+    .card-meta {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      line-height: 1.7;
+    }
+
+    .card-line {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      line-height: 1.5;
+    }
+
+    .card-line-main {
+      min-width: 0;
+      word-break: break-all;
+    }
+
+    .card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 8px;
+      margin-right: 6px;
+      font-size: 11px;
+      background: var(--color-bg-secondary);
+      color: var(--color-brand);
+      vertical-align: middle;
+    }
+
+    .chip.editing {
+      background: rgba(224, 68, 56, 0.08);
+      color: var(--color-danger);
+      margin: 0;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .muted-button {
+      width: 100%;
+      height: 34px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--color-border);
+      background: var(--color-bg-card);
+      color: var(--color-text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      transition: background var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast);
+    }
+
+    .muted-button:hover {
+      background: var(--color-bg-secondary);
+      color: var(--color-text-primary);
+      border-color: var(--color-border);
+    }
+
+    .nav-back {
+      position: fixed;
+      top: 22px;
+      right: 24px;
+      z-index: 8;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 40px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg-card-strong);
+      color: var(--color-text-primary);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      cursor: pointer;
+      backdrop-filter: none;
+      transition: transform var(--duration-fast) var(--ease-out), background var(--duration-fast) ease, border-color var(--duration-fast) ease;
+    }
+
+    .nav-back:hover {
+      transform: translateY(-1px);
+      border-color: var(--color-border-light);
+      background: var(--color-bg-secondary);
+    }
+
+    .nav-back svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    @media (max-width: 1280px) {
+      .page {
+        grid-template-columns: 320px 1fr;
+        grid-template-rows: 1fr 330px;
+      }
+      .right-panel {
+        grid-column: 1 / span 2;
+      }
+    }
+
+    @media (max-width: 920px) {
+      body { overflow: auto; }
+      .page {
+        height: auto;
+        min-height: 100%;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(520px, 62vh) auto;
+      }
+      .right-panel {
+        grid-column: auto;
+      }
+      .tooltip { display: none; }
+    }
+  </style>
+  <script src="https://unpkg.com/three@0.150.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/3d-force-graph"></script>
+</head>
+<body>
+  <button id="backBtn" class="nav-back" type="button" aria-label="返回主页">
+    <svg viewBox="0 0 24 24"><path d="M14.7 5.3a1 1 0 0 1 0 1.4L10.41 11H20a1 1 0 1 1 0 2h-9.59l4.3 4.3a1 1 0 1 1-1.42 1.4l-6-6a1 1 0 0 1 0-1.4l6-6a1 1 0 0 1 1.41 0z"/></svg>
+    返回主页
+  </button>
+  <div class="page">
+    <aside class="panel">
+      <div class="panel-head">
+        <div class="eyebrow">Knowledge Graph</div>
+        <h1 class="title">文件神经元图谱</h1>
+        <p class="subtitle">每个文件都是一个神经元，人工建立的文件关系会以“突触”连接显示，并沉淀为知识库的关联知识。</p>
+      </div>
+      <div class="panel-body">
+        <div class="stats-row">
+          <div class="stat">
+            <strong id="nodeCount">0</strong>
+            <span>文件神经元</span>
+          </div>
+          <div class="stat">
+            <strong id="linkCount">0</strong>
+            <span>突触连接</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="searchInput">筛选文件</label>
+          <input id="searchInput" class="input" type="text" placeholder="输入文件名快速定位">
+        </div>
+        <div class="field">
+          <label for="sourceSelect">起点文件</label>
+          <select id="sourceSelect" class="select"></select>
+        </div>
+        <div class="field">
+          <label for="targetSelect">终点文件</label>
+          <select id="targetSelect" class="select"></select>
+        </div>
+        <div class="field">
+          <label for="labelInput">关联说明</label>
+          <input id="labelInput" class="input" type="text" maxlength="40" placeholder="例如：引用、上下游、同主题、支撑材料">
+        </div>
+        <button id="createLinkBtn" class="button" type="button">建立突触连接</button>
+        <div id="formError" class="error"></div>
+        <div class="hint">悬浮神经元可以查看文件详情，右侧可以看到当前连接和操作日志；删除连接后也会保留日志，方便回退追踪。</div>
+      </div>
+    </aside>
+
+    <main class="panel stage">
+      <div class="stage-topbar">
+        <div id="stageBadge" class="badge">0 个文件神经元 / 0 条突触 / 0 条日志</div>
+        <div class="tool-row">
+          <div class="mode-toggle" role="group" aria-label="画布模式">
+            <button id="browseModeBtn" class="mode-button active" type="button">浏览</button>
+            <button id="editModeBtn" class="mode-button" type="button">编辑</button>
+          </div>
+          <button id="resetViewBtn" class="mini-button" type="button">重置视图</button>
+          <button id="reloadBtn" class="mini-button" type="button">刷新数据</button>
+        </div>
+      </div>
+      <div id="graphCanvas"></div>
+      <div id="tooltip" class="tooltip"></div>
+      <div id="graphContextMenu" class="graph-menu">
+        <button type="button" data-graph-action="set-source">设为连接起点</button>
+        <button type="button" data-graph-action="connect-target">连接到此文件</button>
+        <button type="button" data-graph-action="clear-source">清除起点</button>
+      </div>
+    </main>
+
+    <aside class="panel right-panel">
+      <div class="panel-head">
+        <div class="eyebrow">Connection Memory</div>
+        <h2 class="title" style="font-size:24px;">关联记录</h2>
+        <p class="subtitle">当前连接用于查看和回退，操作日志用于记录谁在什么时候建立或移除了哪条连接。</p>
+      </div>
+      <div class="panel-body">
+        <section class="section">
+          <div class="section-head">
+            <h3>当前连接</h3>
+            <span class="section-note" id="currentLinkSummary">0 条</span>
+          </div>
+          <div class="section-tools">
+            <input id="linkFilterInput" class="compact-input" type="text" placeholder="筛选文件 / 关系 / 创建人">
+            <select id="linkLimitSelect" class="compact-select">
+              <option value="8">8 条</option>
+              <option value="20">20 条</option>
+              <option value="50">50 条</option>
+              <option value="all">全部</option>
+            </select>
+          </div>
+          <div id="linkList" class="list"></div>
+          <div id="linkListFooter" class="list-footer"></div>
+        </section>
+
+        <section class="section">
+          <div class="section-head">
+            <h3>操作日志</h3>
+            <span class="section-note" id="logSummary">0 条</span>
+          </div>
+          <div class="section-tools">
+            <input id="logFilterInput" class="compact-input" type="text" placeholder="筛选文件 / 操作人 / 关系">
+            <select id="logActionSelect" class="compact-select">
+              <option value="all">全部操作</option>
+              <option value="create">建立</option>
+              <option value="delete">删除</option>
+            </select>
+          </div>
+          <div id="logList" class="list"></div>
+          <div id="logListFooter" class="list-footer"></div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const API = window.location.protocol === 'file:'
+      ? 'http://localhost:8000/api'
+      : `${window.location.origin}/api`;
+
+    const token = new URLSearchParams(window.location.search).get('token') || localStorage.getItem('kb_token') || '';
+    if (token) localStorage.setItem('kb_token', token);
+    const savedTheme = localStorage.getItem('kb_theme') || 'auto';
+    const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const resolvedTheme = savedTheme === 'auto' ? (systemDark ? 'dark' : 'light') : savedTheme;
+    document.documentElement.setAttribute('data-theme', resolvedTheme);
+
+    const state = {
+      nodes: [],
+      links: [],
+      logs: [],
+      locks: {},
+      nodeMap: new Map(),
+      canvasMode: 'browse',
+      contextNodeId: null,
+      linkSourceId: null,
+      hoveredNodeId: null,
+      lastMouseX: 0,
+      lastMouseY: 0,
+      search: '',
+      linkFilter: '',
+      logFilter: '',
+      logAction: 'all',
+      visibleLinkCount: 8,
+      visibleLogCount: 8
+    };
+    let graph3D = null;
+    let resizeObserver = null;
+
+    function debounce(fn, delay) {
+      let timer;
+      return function (...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), delay);
+      };
+    }
+
+    const els = {
+      backBtn: document.getElementById('backBtn'),
+      canvas: document.getElementById('graphCanvas'),
+      tooltip: document.getElementById('tooltip'),
+      graphContextMenu: document.getElementById('graphContextMenu'),
+      browseModeBtn: document.getElementById('browseModeBtn'),
+      editModeBtn: document.getElementById('editModeBtn'),
+      sourceSelect: document.getElementById('sourceSelect'),
+      targetSelect: document.getElementById('targetSelect'),
+      labelInput: document.getElementById('labelInput'),
+      searchInput: document.getElementById('searchInput'),
+      createLinkBtn: document.getElementById('createLinkBtn'),
+      formError: document.getElementById('formError'),
+      stageBadge: document.getElementById('stageBadge'),
+      nodeCount: document.getElementById('nodeCount'),
+      linkCount: document.getElementById('linkCount'),
+      linkList: document.getElementById('linkList'),
+      logList: document.getElementById('logList'),
+      linkFilterInput: document.getElementById('linkFilterInput'),
+      linkLimitSelect: document.getElementById('linkLimitSelect'),
+      linkListFooter: document.getElementById('linkListFooter'),
+      logFilterInput: document.getElementById('logFilterInput'),
+      logActionSelect: document.getElementById('logActionSelect'),
+      logListFooter: document.getElementById('logListFooter'),
+      currentLinkSummary: document.getElementById('currentLinkSummary'),
+      logSummary: document.getElementById('logSummary'),
+      reloadBtn: document.getElementById('reloadBtn'),
+      resetViewBtn: document.getElementById('resetViewBtn')
+    };
+
+    
+
+    async function api(path, options = {}) {
+      const headers = { ...(options.headers || {}) };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+      const res = await fetch(`${API}${path}`, { ...options, headers });
+      if (res.status === 401) throw new Error('登录已失效，请重新登录后再进入图谱页面');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || '请求失败');
+      return data;
+    }
+
+    function formatTime(iso) {
+      if (!iso) return '-';
+      return new Date(iso).toLocaleString('zh-CN');
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function fileTypeLabel(type) {
+      return String(type || '').replace('.', '').toUpperCase() || 'FILE';
+    }
+
+    function fileColor(type) {
+      const ext = String(type || '').toLowerCase();
+      if (resolvedTheme === 'dark') {
+        if (['.md', '.txt', '.docx'].includes(ext)) return ['#7bb3e8', '#4a9ae0'];
+        if (['.xlsx', '.xls', '.csv'].includes(ext)) return ['#86b7f0', '#5d8fd0'];
+        if (['.json', '.js', '.ts', '.py'].includes(ext)) return ['#89a6ff', '#5f74cf'];
+        return ['#c3c1ba', '#7b7970'];
+      }
+      if (['.md', '.txt', '.docx'].includes(ext)) return ['#9ec7ef', '#2563a8'];
+      if (['.xlsx', '.xls', '.csv'].includes(ext)) return ['#b7d2f6', '#5f8fcc'];
+      if (['.json', '.js', '.ts', '.py'].includes(ext)) return ['#adc0ff', '#6b7fd8'];
+      return ['#d7d8dd', '#8a8b94'];
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function nodeContentScore(node) {
+      const summary = node.analysis_summary || {};
+      const tableCells = Number(summary.rows || 0) * Math.max(1, Number(summary.columns || 0));
+      return Math.max(
+        Number(node.content_amount || 0),
+        Number(summary.char_count || 0),
+        Number(summary.word_count || 0) * 4,
+        tableCells * 12,
+        Number(summary.line_count || 0) * 30,
+        Number(node.size || 0) / 2
+      );
+    }
+
+    function nodeRadius(node, hover = false) {
+      const sizeScore = Math.log10(Number(node.size || 0) + 10);
+      const contentScore = Math.log10(nodeContentScore(node) + 10);
+      const radius = 17 + sizeScore * 2.4 + contentScore * 2.8;
+      return clamp(radius + (hover ? 4 : 0), 22, 43);
+    }
+
+    function fileTypeGlyph(type) {
+      const ext = String(type || '').toLowerCase();
+      if (['.xlsx', '.xls', '.csv'].includes(ext)) return 'XLS';
+      if (['.md', '.txt', '.docx'].includes(ext)) return 'TXT';
+      if (['.json', '.js', '.ts', '.py'].includes(ext)) return 'DEV';
+      if (['.ppt', '.pptx'].includes(ext)) return 'PPT';
+      return 'FILE';
+    }
+
+    function visibleNodes() {
+      const keyword = state.search.trim().toLowerCase();
+      if (!keyword) return state.nodes;
+      return state.nodes.filter(node => String(node.filename || '').toLowerCase().includes(keyword));
+    }
+
+    function update3DGraph() {
+      if (!graph3D) return;
+      const nodes = visibleNodes();
+      const nodeIds = new Set(nodes.map(n => n.id));
+      const links = state.links.filter(l => nodeIds.has(l.file_id) && nodeIds.has(l.related_file_id)).map(l => ({
+        ...l,
+        source: l.file_id,
+        target: l.related_file_id,
+        name: l.relation_label
+      }));
+      graph3D.graphData({ nodes, links });
+    }
+
+    function fillSelectOptions() {
+      const options = ['<option value=\"\">请选择文件</option>']
+        .concat(visibleNodes().map(node => `<option value=\"${node.id}\">${escapeHtml(node.filename)}</option>`));
+      els.sourceSelect.innerHTML = options.join('');
+      els.targetSelect.innerHTML = options.join('');
+    }
+
+    function renderLinkList() {
+      els.currentLinkSummary.textContent = `${state.links.length} 条`;
+      if (!state.links.length) {
+        els.linkList.innerHTML = '<div class=\"empty\">还没有建立任何连接。先在左侧选择两个文件，建立第一条“突触”。</div>';
+        return;
+      }
+      els.linkList.innerHTML = state.links.map(link => {
+        const a = state.nodeMap.get(link.file_id);
+        const b = state.nodeMap.get(link.related_file_id);
+        if (!a || !b) return '';
+        const label = link.relation_label ? `<span class=\"chip\">${escapeHtml(link.relation_label)}</span>` : '';
+        return `
+          <div class=\"card\">
+            <div class=\"card-title\">${escapeHtml(a.filename)} ↔ ${escapeHtml(b.filename)}</div>
+            <div class=\"card-meta\">${label}建立人：${escapeHtml(link.created_by || '-')}</div>
+            <div class=\"card-meta\">建立时间：${formatTime(link.created_at)}</div>
+            <div class=\"card-actions\">
+              <button class=\"mini-button danger\" type=\"button\" data-delete-link=\"${link.id}\">删除连接</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderLogs() {
+      els.logSummary.textContent = `${state.logs.length} 条`;
+      if (!state.logs.length) {
+        els.logList.innerHTML = '<div class=\"empty\">当前还没有操作日志。</div>';
+        return;
+      }
+      els.logList.innerHTML = state.logs.map(log => {
+        const a = state.nodeMap.get(log.file_id);
+        const b = state.nodeMap.get(log.related_file_id);
+        if (!a || !b) return '';
+        const actionText = log.action === 'delete' ? '删除了连接' : '建立了连接';
+        const canRestore = log.action === 'delete';
+        const relation = log.relation_label ? `<span class=\"chip\">${escapeHtml(log.relation_label)}</span>` : '';
+        return `
+          <div class=\"card\">
+            <div class=\"card-title\">${escapeHtml(log.created_by || '-')} ${actionText}</div>
+            <div class=\"card-meta\">${escapeHtml(a.filename)} ↔ ${escapeHtml(b.filename)}</div>
+            <div class=\"card-meta\">${relation}操作时间：${formatTime(log.created_at)}</div>
+            <div class=\"card-actions\">
+              ${canRestore ? `<button class=\"mini-button\" type=\"button\" data-restore-log=\"${log.id}\" data-file-id=\"${log.file_id}\" data-related-file-id=\"${log.related_file_id}\" data-label=\"${escapeHtml(log.relation_label || '')}\">回退恢复</button>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getEditingChip(fileId) {
+      const lock = state.locks[fileId];
+      if (!lock) return '';
+      const displayName = lock.name || lock.username || '-';
+      return `<span class=\"chip editing\" title=\"${escapeHtml(displayName)} 正在编辑此文件\">${escapeHtml(displayName)} 正在编辑此文件</span>`;
+    }
+
+    function linkMatchesFilter(link) {
+      const keyword = state.linkFilter.trim().toLowerCase();
+      if (!keyword) return true;
+      const a = state.nodeMap.get(link.file_id);
+      const b = state.nodeMap.get(link.related_file_id);
+      return [
+        a?.filename,
+        b?.filename,
+        link.relation_label,
+        link.created_by,
+        formatTime(link.created_at)
+      ].some(value => String(value || '').toLowerCase().includes(keyword));
+    }
+
+    function logMatchesFilter(log) {
+      if (state.logAction !== 'all' && log.action !== state.logAction) return false;
+      const keyword = state.logFilter.trim().toLowerCase();
+      if (!keyword) return true;
+      const a = state.nodeMap.get(log.file_id);
+      const b = state.nodeMap.get(log.related_file_id);
+      return [
+        a?.filename,
+        b?.filename,
+        log.relation_label,
+        log.created_by,
+        log.action === 'delete' ? '删除' : '建立',
+        formatTime(log.created_at)
+      ].some(value => String(value || '').toLowerCase().includes(keyword));
+    }
+
+    function renderListFooter(el, filteredCount, shownCount, increment, action) {
+      if (shownCount >= filteredCount) {
+        el.innerHTML = '';
+        return;
+      }
+      const nextCount = Math.min(filteredCount, shownCount + increment);
+      el.innerHTML = `<button class=\"muted-button\" type=\"button\" data-list-more=\"${action}\">显示更多（${nextCount}/${filteredCount}）</button>`;
+    }
+
+    function renderLinkList() {
+      const filteredLinks = state.links.filter(linkMatchesFilter);
+      const limitValue = els.linkLimitSelect.value;
+      const selectedLimit = limitValue === 'all' ? filteredLinks.length : Number(limitValue || 8);
+      const shownCount = Math.min(filteredLinks.length, Math.max(state.visibleLinkCount, selectedLimit));
+      const visibleLinks = filteredLinks.slice(0, shownCount);
+      els.currentLinkSummary.textContent = state.linkFilter
+        ? `${filteredLinks.length}/${state.links.length} 条`
+        : `${state.links.length} 条`;
+      if (!state.links.length) {
+        els.linkList.innerHTML = '<div class=\"empty\">还没有建立任何连接。</div>';
+        els.linkListFooter.innerHTML = '';
+        return;
+      }
+      if (!filteredLinks.length) {
+        els.linkList.innerHTML = '<div class=\"empty\">没有匹配的连接记录。</div>';
+        els.linkListFooter.innerHTML = '';
+        return;
+      }
+      els.linkList.innerHTML = visibleLinks.map(link => {
+        const a = state.nodeMap.get(link.file_id);
+        const b = state.nodeMap.get(link.related_file_id);
+        if (!a || !b) return '';
+        const label = link.relation_label ? `<span class=\"chip\">${escapeHtml(link.relation_label)}</span>` : '';
+        const aEditing = getEditingChip(a.id);
+        const bEditing = getEditingChip(b.id);
+        return `
+          <div class=\"card\">
+            <div class=\"card-title\">
+              <div class=\"card-line\">
+                <span class=\"card-line-main\">${escapeHtml(a.filename)}</span>
+                ${aEditing}
+              </div>
+              <div class=\"card-line\">
+                <span class=\"card-line-main\">↔ ${escapeHtml(b.filename)}</span>
+                ${bEditing}
+              </div>
+            </div>
+            <div class=\"card-meta\">${label}建立人：${escapeHtml(link.created_by || '-')}</div>
+            <div class=\"card-meta\">建立时间：${formatTime(link.created_at)}</div>
+            <div class=\"card-actions\">
+              <button class=\"mini-button danger\" type=\"button\" data-delete-link=\"${link.id}\">删除连接</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      renderListFooter(els.linkListFooter, filteredLinks.length, visibleLinks.length, 12, 'links');
+    }
+
+    function renderLogs() {
+      const filteredLogs = state.logs.filter(logMatchesFilter);
+      const visibleLogs = filteredLogs.slice(0, state.visibleLogCount);
+      els.logSummary.textContent = (state.logFilter || state.logAction !== 'all')
+        ? `${filteredLogs.length}/${state.logs.length} 条`
+        : `${state.logs.length} 条`;
+      if (!state.logs.length) {
+        els.logList.innerHTML = '<div class=\"empty\">当前还没有操作日志。</div>';
+        els.logListFooter.innerHTML = '';
+        return;
+      }
+      if (!filteredLogs.length) {
+        els.logList.innerHTML = '<div class=\"empty\">没有匹配的操作日志。</div>';
+        els.logListFooter.innerHTML = '';
+        return;
+      }
+      els.logList.innerHTML = visibleLogs.map(log => {
+        const a = state.nodeMap.get(log.file_id);
+        const b = state.nodeMap.get(log.related_file_id);
+        if (!a || !b) return '';
+        const actionText = log.action === 'delete' ? '删除了连接' : '建立了连接';
+        const canRestore = log.action === 'delete';
+        const relation = log.relation_label ? `<span class=\"chip\">${escapeHtml(log.relation_label)}</span>` : '';
+        const editingChips = [getEditingChip(a.id), getEditingChip(b.id)].filter(Boolean).join('');
+        return `
+          <div class=\"card\">
+            <div class=\"card-title\">${escapeHtml(log.created_by || '-')} ${actionText}</div>
+            <div class=\"card-meta\">${escapeHtml(a.filename)} ↔ ${escapeHtml(b.filename)}</div>
+            ${editingChips ? `<div class=\"card-meta\"><div class=\"card-line\" style=\"justify-content:flex-start;\">${editingChips}</div></div>` : ''}
+            <div class=\"card-meta\">${relation}操作时间：${formatTime(log.created_at)}</div>
+            <div class=\"card-actions\">
+              ${canRestore ? `<button class=\"mini-button\" type=\"button\" data-restore-log=\"${log.id}\" data-file-id=\"${log.file_id}\" data-related-file-id=\"${log.related_file_id}\" data-label=\"${escapeHtml(log.relation_label || '')}\">回退恢复</button>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+      renderListFooter(els.logListFooter, filteredLogs.length, visibleLogs.length, 12, 'logs');
+    }
+
+    function updateCounts() {
+      els.nodeCount.textContent = String(state.nodes.length);
+      els.linkCount.textContent = String(state.links.length);
+      els.stageBadge.textContent = `${state.nodes.length} 个文件神经元 / ${state.links.length} 条突触 / ${state.logs.length} 条日志`;
+    }
+
+    function showTooltip(nodeId, screenX, screenY) {
+      const node = state.nodeMap.get(nodeId);
+      if (!node) {
+        els.tooltip.classList.remove('show');
+        return;
+      }
+      const degree = state.links.reduce((count, link) => {
+        return count + ((link.file_id === nodeId || link.related_file_id === nodeId) ? 1 : 0);
+      }, 0);
+      const editing = state.locks[nodeId];
+      const editingMeta = editing
+        ? `<div class="tooltip-meta"><strong>编辑状态：</strong>${escapeHtml(editing.name || editing.username || '-')} 正在编辑此文件</div>`
+        : '';
+      const summary = node.analysis_summary || {};
+      const contentHint = summary.rows
+        ? `${Number(summary.rows || 0).toLocaleString()} 行 / ${Number(summary.columns || 0).toLocaleString()} 列`
+        : `${Number(summary.char_count || node.content_amount || 0).toLocaleString()} 字符`;
+      els.tooltip.innerHTML = `
+        <div class="tooltip-title">${escapeHtml(node.filename)}</div>
+        <div class="tooltip-meta"><strong>文件类型：</strong>${escapeHtml(fileTypeLabel(node.type))}</div>
+        <div class="tooltip-meta"><strong>文件大小：</strong>${Number(node.size || 0).toLocaleString()} B</div>
+        <div class="tooltip-meta"><strong>内容体量：</strong>${escapeHtml(contentHint)}</div>
+        <div class="tooltip-meta"><strong>所在路径：</strong>${escapeHtml(node.folder || '根目录')}</div>
+        <div class="tooltip-meta"><strong>上传人：</strong>${escapeHtml(node.uploaded_by || '-')}</div>
+        <div class="tooltip-meta"><strong>上传时间：</strong>${escapeHtml(formatTime(node.uploaded_at))}</div>
+        ${editingMeta}
+        <div class="tooltip-meta"><strong>关联数量：</strong>${degree}</div>
+      `;
+      const bounds = els.canvas.getBoundingClientRect();
+      const left = Math.min(bounds.width - 330, Math.max(14, screenX + 20));
+      const top = Math.min(bounds.height - 190, Math.max(14, screenY + 20));
+      els.tooltip.style.left = `${left}px`;
+      els.tooltip.style.top = `${top}px`;
+      els.tooltip.classList.add('show');
+    }
+
+    function hideTooltip() {
+      els.tooltip.classList.remove('show');
+    }
+
+    async function loadGraph() {
+      els.formError.textContent = '';
+      const data = await api('/file-links');
+      state.nodes = data.nodes || [];
+      state.links = data.links || [];
+      state.logs = data.logs || [];
+      state.locks = data.locks || {};
+      state.nodeMap = new Map(state.nodes.map(node => [node.id, node]));
+      fillSelectOptions();
+      renderLinkList();
+      renderLogs();
+      updateCounts();
+      if (!graph3D) init3DGraph();
+      else update3DGraph();
+    }
+
+    async function createLink(fileId, relatedFileId, relationLabel) {
+      await api('/file-links', {
+        method: 'POST',
+        body: JSON.stringify({
+          file_id: fileId,
+          related_file_id: relatedFileId,
+          relation_label: relationLabel || ''
+        })
+      });
+    }
+
+    async function handleCreateLink() {
+      const fileId = els.sourceSelect.value;
+      const relatedFileId = els.targetSelect.value;
+      const label = els.labelInput.value.trim();
+      if (!fileId || !relatedFileId) {
+        els.formError.textContent = '请先选择两个文件。';
+        return;
+      }
+      if (fileId === relatedFileId) {
+        els.formError.textContent = '不能把同一个文件和自己连接。';
+        return;
+      }
+      els.createLinkBtn.disabled = true;
+      try {
+        await createLink(fileId, relatedFileId, label);
+        els.labelInput.value = '';
+        els.formError.textContent = '';
+        await loadGraph();
+      } catch (error) {
+        els.formError.textContent = error.message || '建立连接失败';
+      } finally {
+        els.createLinkBtn.disabled = false;
+      }
+    }
+
+    async function deleteLink(linkId) {
+      await api(`/file-links/${linkId}`, { method: 'DELETE' });
+    }
+
+    async function restoreFromLog(button) {
+      const fileId = button.getAttribute('data-file-id');
+      const relatedFileId = button.getAttribute('data-related-file-id');
+      const label = button.getAttribute('data-label') || '';
+      try {
+        await createLink(fileId, relatedFileId, label);
+        await loadGraph();
+      } catch (error) {
+        els.formError.textContent = error.message || '恢复连接失败';
+      }
+    }
+
+    function setCanvasMode(mode) {
+      state.canvasMode = mode;
+      state.contextNodeId = null;
+      hideGraphMenu();
+      if (mode !== 'edit') state.linkSourceId = null;
+      els.browseModeBtn.classList.toggle('active', mode === 'browse');
+      els.editModeBtn.classList.toggle('active', mode === 'edit');
+      els.formError.textContent = mode === 'edit'
+        ? '编辑模式：右键节点选择起点，再右键目标节点建立连接。'
+        : '';
+      if(graph3D) update3DGraph();
+    }
+
+    function hideGraphMenu() {
+      els.graphContextMenu.classList.remove('show');
+      state.contextNodeId = null;
+    }
+
+    function showGraphMenu(nodeId, x, y) {
+      state.contextNodeId = nodeId;
+      const bounds = els.canvas.getBoundingClientRect();
+      const menu = els.graphContextMenu;
+      menu.style.left = `${Math.min(bounds.width - 190, Math.max(12, x))}px`;
+      menu.style.top = `${Math.min(bounds.height - 120, Math.max(12, y))}px`;
+      menu.classList.add('show');
+    }
+
+    async function connectFromCanvas(targetId) {
+      if (!state.linkSourceId) {
+        state.linkSourceId = targetId;
+        els.sourceSelect.value = targetId;
+        els.formError.textContent = '已选择连接起点，请右键目标文件并选择“连接到此文件”。';
+        requestDraw();
+        return;
+      }
+      if (state.linkSourceId === targetId) {
+        els.formError.textContent = '不能把同一个文件和自己连接。';
+        return;
+      }
+      try {
+        await createLink(state.linkSourceId, targetId, els.labelInput.value.trim());
+        els.targetSelect.value = targetId;
+        els.formError.textContent = '';
+        state.linkSourceId = null;
+        await loadGraph();
+      } catch (error) {
+        els.formError.textContent = error.message || '建立连接失败';
+      }
+    }
+
+    els.searchInput.addEventListener('input', debounce(() => {
+      state.search = els.searchInput.value || '';
+      fillSelectOptions();
+      update3DGraph();
+    }, 300));
+
+    els.linkFilterInput.addEventListener('input', debounce(() => {
+      state.linkFilter = els.linkFilterInput.value || '';
+      state.visibleLinkCount = Number(els.linkLimitSelect.value) || 8;
+      renderLinkList();
+    }, 300));
+
+    els.linkLimitSelect.addEventListener('change', () => {
+      state.visibleLinkCount = els.linkLimitSelect.value === 'all'
+        ? Number.MAX_SAFE_INTEGER
+        : Number(els.linkLimitSelect.value || 8);
+      renderLinkList();
+    });
+
+    els.logFilterInput.addEventListener('input', debounce(() => {
+      state.logFilter = els.logFilterInput.value || '';
+      state.visibleLogCount = 8;
+      renderLogs();
+    }, 300));
+
+    els.logActionSelect.addEventListener('change', () => {
+      state.logAction = els.logActionSelect.value || 'all';
+      state.visibleLogCount = 8;
+      renderLogs();
+    });
+
+    els.createLinkBtn.addEventListener('click', handleCreateLink);
+    els.reloadBtn.addEventListener('click', loadGraph);
+    els.browseModeBtn.addEventListener('click', () => setCanvasMode('browse'));
+    els.editModeBtn.addEventListener('click', () => setCanvasMode('edit'));
+    els.backBtn.addEventListener('click', () => {
+      document.body.classList.add('page-leaving');
+      window.setTimeout(() => {
+        if (window.history.length > 1) {
+          window.history.back();
+        } else {
+          const origin = window.location.protocol === 'file:' ? 'http://localhost:8000' : window.location.origin;
+          window.location.href = `${origin}/index.html`;
+        }
+      }, 220);
+    });
+    els.resetViewBtn.addEventListener('click', () => {
+      if (graph3D) {
+        graph3D.zoomToFit(400);
+      }
+    });
+
+    els.linkList.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-delete-link]');
+      if (!button) return;
+      try {
+        await deleteLink(button.getAttribute('data-delete-link'));
+        await loadGraph();
+      } catch (error) {
+        els.formError.textContent = error.message || '删除连接失败';
+      }
+    });
+
+    els.linkListFooter.addEventListener('click', (event) => {
+      const moreButton = event.target.closest('[data-list-more="links"]');
+      if (!moreButton) return;
+      state.visibleLinkCount += 12;
+      renderLinkList();
+    });
+
+    els.logList.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-restore-log]');
+      if (!button) return;
+      await restoreFromLog(button);
+    });
+
+    els.logListFooter.addEventListener('click', (event) => {
+      const moreButton = event.target.closest('[data-list-more="logs"]');
+      if (!moreButton) return;
+      state.visibleLogCount += 12;
+      renderLogs();
+    });
+
+    els.graphContextMenu.addEventListener('click', async (event) => {
+      const action = event.target.closest('[data-graph-action]')?.getAttribute('data-graph-action');
+      const nodeId = state.contextNodeId;
+      if (!action || !nodeId) return;
+      if (action === 'set-source') {
+        state.linkSourceId = nodeId;
+        els.sourceSelect.value = nodeId;
+        els.formError.textContent = '已选择连接起点，请右键目标文件并选择“连接到此文件”。';
+        hideGraphMenu();
+        if(graph3D) update3DGraph();
+        return;
+      }
+      if (action === 'connect-target') {
+        hideGraphMenu();
+        await connectFromCanvas(nodeId);
+        return;
+      }
+      if (action === 'clear-source') {
+        state.linkSourceId = null;
+        els.sourceSelect.value = '';
+        els.formError.textContent = '已清除连接起点。';
+        hideGraphMenu();
+        if(graph3D) update3DGraph();
+      }
+    });
+
+        document.addEventListener('mousemove', (e) => {
+      state.lastMouseX = e.clientX;
+      state.lastMouseY = e.clientY;
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!els.graphContextMenu.contains(event.target)) hideGraphMenu();
+    });
+
+    function init3DGraph() {
+      graph3D = ForceGraph3D()(els.canvas)
+        .backgroundColor('#030514')
+        .nodeLabel('') 
+        .nodeThreeObject(node => {
+          if (!window.THREE) return false;
+          
+          let degree = 0;
+          if (graph3D && graph3D.graphData().links) {
+            degree = graph3D.graphData().links.filter(l => 
+              l.source === node.id || l.target === node.id || 
+              l.source?.id === node.id || l.target?.id === node.id || 
+              l.file_id === node.id || l.related_file_id === node.id
+            ).length;
+          } else {
+            degree = state.links.filter(l => l.file_id === node.id || l.related_file_id === node.id).length;
+          }
+
+          const baseR = Math.max(4, nodeRadius(node, false) / 3.5);
+          const r = baseR + (degree * 0.8); 
+          const colors = fileColor(node.type);
+          
+          const group = new THREE.Group();
+          
+          const isStar = degree >= 3 || baseR >= 8;
+
+          if (isStar) {
+            // Star
+            const emissiveColor = new THREE.Color(colors[0]).lerp(new THREE.Color('#ffbb00'), 0.5);
+            const geometry = new THREE.SphereGeometry(r, 32, 32);
+            const material = new THREE.MeshStandardMaterial({
+              color: '#ffffff',
+              emissive: emissiveColor,
+              emissiveIntensity: 1.2,
+              roughness: 0.1,
+              metalness: 0.1
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+            group.add(sphere);
+
+            // Star Glow
+            const glowGeo = new THREE.SphereGeometry(r * 1.5, 32, 32);
+            const glowMat = new THREE.MeshBasicMaterial({
+              color: emissiveColor,
+              transparent: true,
+              opacity: 0.35,
+              blending: THREE.AdditiveBlending,
+              side: THREE.BackSide
+            });
+            const glow = new THREE.Mesh(glowGeo, glowMat);
+            group.add(glow);
+
+            // Energy Corona
+            const wireGeo = new THREE.SphereGeometry(r * 1.15, 16, 16);
+            const wireMat = new THREE.MeshBasicMaterial({
+              color: '#ffffff',
+              wireframe: true,
+              transparent: true,
+              opacity: 0.25,
+              blending: THREE.AdditiveBlending
+            });
+            const wireframe = new THREE.Mesh(wireGeo, wireMat);
+            group.add(wireframe);
+          } else {
+            // Planet
+            const geometry = new THREE.SphereGeometry(r, 32, 32);
+            const material = new THREE.MeshStandardMaterial({
+              color: colors[0],
+              roughness: 0.8,
+              metalness: 0.3,
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+            group.add(sphere);
+
+            if (degree === 2) {
+              // Planetary Rings
+              const ringGeo = new THREE.RingGeometry(r * 1.5, r * 2.0, 32);
+              const ringMat = new THREE.MeshStandardMaterial({
+                color: colors[1],
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.5,
+                roughness: 0.9
+              });
+              const ring = new THREE.Mesh(ringGeo, ringMat);
+              ring.rotation.x = Math.PI / 2 + Math.random() * 0.4;
+              ring.rotation.y = Math.random() * 0.4;
+              group.add(ring);
+            } else {
+              // Atmosphere
+              const atmoGeo = new THREE.SphereGeometry(r * 1.15, 32, 32);
+              const atmoMat = new THREE.MeshStandardMaterial({
+                color: colors[1],
+                transparent: true,
+                opacity: 0.2,
+                roughness: 1,
+                blending: THREE.AdditiveBlending
+              });
+              const atmo = new THREE.Mesh(atmoGeo, atmoMat);
+              group.add(atmo);
+            }
+          }
+
+          return group;
+        })
+        .linkColor(() => 'rgba(100, 150, 255, 0.2)')
+        .linkWidth(1.5)
+        .linkDirectionalParticles(link => 2 + Math.floor(Math.random() * 2))
+        .linkDirectionalParticleWidth(1.8)
+        .linkDirectionalParticleSpeed(0.006)
+        .linkDirectionalParticleColor(() => '#aaccff')
+        .onNodeHover((node) => {
+          els.canvas.style.cursor = node ? 'pointer' : null;
+          if (node) {
+            state.hoveredNodeId = node.id;
+            showTooltip(node.id, state.lastMouseX, state.lastMouseY);
+          } else {
+            state.hoveredNodeId = null;
+            hideTooltip();
+          }
+        })
+        .onNodeClick(node => {
+          if (state.canvasMode === 'edit' && state.linkSourceId && state.linkSourceId !== node.id) {
+            connectFromCanvas(node.id);
+          } else {
+            const distance = 200;
+            const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
+            graph3D.cameraPosition(
+              { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio }, 
+              node, 
+              1000 
+            );
+          }
+        })
+        .onNodeRightClick((node, event) => {
+          if (state.canvasMode !== 'edit') {
+            els.formError.textContent = '请先切换到编辑模式，再右键节点创建连接。';
+            return;
+          }
+          showGraphMenu(node.id, event.clientX, event.clientY);
+        })
+        .onBackgroundRightClick(() => {
+          hideGraphMenu();
+        });
+
+      update3DGraph();
+      
+      if (window.THREE) {
+        const scene = graph3D.scene();
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 2500;
+        const starPositions = new Float32Array(starCount * 3);
+        for(let i=0; i < starCount * 3; i++) {
+          starPositions[i] = (Math.random() - 0.5) * 4000;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMat = new THREE.PointsMaterial({
+          color: 0xffffff, 
+          size: 1.8, 
+          transparent: true, 
+          opacity: 0.6,
+          sizeAttenuation: true
+        });
+        const stars = new THREE.Points(starGeo, starMat);
+        scene.add(stars);
+      }
+
+      resizeObserver = new ResizeObserver(() => {
+        const rect = els.canvas.getBoundingClientRect();
+        graph3D.width(rect.width).height(rect.height);
+      });
+      resizeObserver.observe(els.canvas);
+    }
+
+    loadGraph().catch(error => {
+      els.formError.textContent = error.message || '图谱加载失败';
+    });
+    setInterval(() => {
+      loadGraph().catch(() => {});
+    }, 15000);
+  </script>
+</body>
+</html>

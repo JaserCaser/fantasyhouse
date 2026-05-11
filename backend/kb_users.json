@@ -1,0 +1,36 @@
+{
+  "users": [
+    {
+      "username": "admin",
+      "password_hash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+      "name": "管理员",
+      "role": "admin",
+      "created_at": "2026-04-21T14:20:38.076920",
+      "status": "active"
+    },
+    {
+      "username": "testuser",
+      "password_hash": "9b8769a4a742959a2d0298c36fb70623f2dfacda8436237df08d8dfd5b37374c",
+      "name": "测试用户",
+      "role": "member",
+      "status": "active",
+      "created_at": "2026-04-21T15:24:20.563028"
+    },
+    {
+      "username": "admincreated",
+      "password_hash": "5a4640c17e8e49ebcc72234cce9644dcacfbc2c53e026f59281ca33928bed52d",
+      "name": "管理员创建",
+      "role": "member",
+      "status": "pending",
+      "created_at": "2026-04-21T15:30:20.720144"
+    },
+    {
+      "username": "newmember2",
+      "password_hash": "6ca13d52ca70c883e0f0bb101e425a89e8624de51db2d2392593af6a84118090",
+      "name": "新成员2",
+      "role": "member",
+      "status": "active",
+      "created_at": "2026-04-21T15:47:11.010916"
+    }
+  ]
+}
