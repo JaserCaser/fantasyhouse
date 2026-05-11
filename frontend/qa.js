@@ -12,10 +12,12 @@
   const messagesArea = document.getElementById('messagesArea');
   const welcome = document.getElementById('welcome');
   const modelChip = document.getElementById('modelChip');
+  const fileBindSelect = document.getElementById('fileBindSelect');
 
   // Conversation history [{role, content}]
   let history = [];
   let isStreaming = false;
+  let selectedFileId = '';
 
   // ──────────────── Markdown / escape ────────────────
 
@@ -58,6 +60,27 @@
       modelChip.textContent = '无法获取模型';
       modelChip.classList.add('no-model');
     }
+  }
+
+  async function loadFileOptions() {
+    if (!token || !fileBindSelect) return;
+    try {
+      const res = await fetch(API + '/files', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      if (!res.ok) return;
+      const files = await res.json();
+      const current = fileBindSelect.value;
+      fileBindSelect.innerHTML = '<option value="">全部文件（自动检索）</option>';
+      (files || []).forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f.id || '';
+        opt.textContent = f.filename || f.id || '未命名文件';
+        fileBindSelect.appendChild(opt);
+      });
+      if (current) fileBindSelect.value = current;
+      selectedFileId = fileBindSelect.value || '';
+    } catch (e) {}
   }
 
   // ──────────────── UI helpers ────────────────
@@ -175,7 +198,8 @@
     // Build payload with history
     const payload = {
       question,
-      messages: history.map(m => ({ role: m.role, content: m.content }))
+      messages: history.map(m => ({ role: m.role, content: m.content })),
+      selected_file_id: selectedFileId || null
     };
 
     let accumulated = '';
@@ -217,8 +241,9 @@
         buffer = lines.pop(); // keep incomplete line
 
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const dataStr = line.slice(6).trim();
+          const normalized = line.replace(/\r$/, '');
+          if (!normalized.startsWith('data: ')) continue;
+          const dataStr = normalized.slice(6).trim();
           if (!dataStr || dataStr === '[DONE]') continue;
 
           let evt;
@@ -238,6 +263,8 @@
             if (evt.source === 'kb') {
               finalizeAiMessage(aiMsgEl, accumulated, sources);
               finalized = true;
+              history.push({ role: 'user', content: question });
+              history.push({ role: 'assistant', content: accumulated });
             } else {
               appendToken(aiMsgEl, accumulated);
             }
@@ -320,6 +347,11 @@
   textarea.addEventListener('input', autoResize);
 
   clearBtn.addEventListener('click', clearConversation);
+  if (fileBindSelect) {
+    fileBindSelect.addEventListener('change', () => {
+      selectedFileId = fileBindSelect.value || '';
+    });
+  }
 
   backBtn.addEventListener('click', () => {
     const origin = window.location.protocol === 'file:'
@@ -331,6 +363,7 @@
   // ──────────────── Init ────────────────
 
   loadModelInfo();
+  loadFileOptions();
 
   if (!token) {
     modelChip.textContent = '未登录';

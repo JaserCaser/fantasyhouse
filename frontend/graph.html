@@ -671,7 +671,7 @@
     }
   </style>
   <script src="https://unpkg.com/three@0.150.0/build/three.min.js"></script>
-  <script src="https://unpkg.com/3d-force-graph"></script>
+  <script src="https://unpkg.com/3d-force-graph@1.73.0/dist/3d-force-graph.min.js"></script>
 </head>
 <body>
   <button id="backBtn" class="nav-back" type="button" aria-label="返回主页">
@@ -1448,96 +1448,139 @@
           const baseR = Math.max(4, nodeRadius(node, false) / 3.5);
           const r = baseR + (degree * 0.8); 
           const colors = fileColor(node.type);
+          const mainColor = colors[0];
+          const accentColor = colors[1];
           
           const group = new THREE.Group();
           
           const isStar = degree >= 3 || baseR >= 8;
 
-          if (isStar) {
-            // Star
-            const emissiveColor = new THREE.Color(colors[0]).lerp(new THREE.Color('#ffbb00'), 0.5);
-            const geometry = new THREE.SphereGeometry(r, 32, 32);
-            const material = new THREE.MeshStandardMaterial({
-              color: '#ffffff',
-              emissive: emissiveColor,
-              emissiveIntensity: 1.2,
-              roughness: 0.1,
-              metalness: 0.1
-            });
-            const sphere = new THREE.Mesh(geometry, material);
-            group.add(sphere);
+          // 1. Core Planet/Star
+          const coreGeo = new THREE.SphereGeometry(r, 32, 32);
+          const coreMat = new THREE.MeshPhongMaterial({
+            color: mainColor,
+            emissive: isStar ? mainColor : '#000000',
+            emissiveIntensity: isStar ? 0.6 : 0.1,
+            shininess: 100,
+            transparent: true,
+            opacity: 0.95,
+          });
+          const core = new THREE.Mesh(coreGeo, coreMat);
+          group.add(core);
 
-            // Star Glow
-            const glowGeo = new THREE.SphereGeometry(r * 1.5, 32, 32);
-            const glowMat = new THREE.MeshBasicMaterial({
-              color: emissiveColor,
-              transparent: true,
-              opacity: 0.35,
-              blending: THREE.AdditiveBlending,
-              side: THREE.BackSide
-            });
-            const glow = new THREE.Mesh(glowGeo, glowMat);
-            group.add(glow);
+          // 2. Sci-Fi Wireframe Shield
+          const shieldGeo = new THREE.IcosahedronGeometry(r * 1.1, 2);
+          const shieldMat = new THREE.MeshBasicMaterial({
+            color: accentColor,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.25,
+            blending: THREE.AdditiveBlending
+          });
+          const shield = new THREE.Mesh(shieldGeo, shieldMat);
+          group.add(shield);
 
-            // Energy Corona
-            const wireGeo = new THREE.SphereGeometry(r * 1.15, 16, 16);
-            const wireMat = new THREE.MeshBasicMaterial({
-              color: '#ffffff',
-              wireframe: true,
-              transparent: true,
-              opacity: 0.25,
-              blending: THREE.AdditiveBlending
-            });
-            const wireframe = new THREE.Mesh(wireGeo, wireMat);
-            group.add(wireframe);
-          } else {
-            // Planet
-            const geometry = new THREE.SphereGeometry(r, 32, 32);
-            const material = new THREE.MeshStandardMaterial({
-              color: colors[0],
-              roughness: 0.8,
-              metalness: 0.3,
-            });
-            const sphere = new THREE.Mesh(geometry, material);
-            group.add(sphere);
-
-            if (degree === 2) {
-              // Planetary Rings
-              const ringGeo = new THREE.RingGeometry(r * 1.5, r * 2.0, 32);
-              const ringMat = new THREE.MeshStandardMaterial({
-                color: colors[1],
-                side: THREE.DoubleSide,
+          // 3. Tech Data Rings
+          if (degree > 0 || isStar) {
+            const ringCount = isStar ? 2 : 1;
+            for(let i=0; i<ringCount; i++) {
+              const ringR = r * (1.6 + i * 0.5);
+              const ringGeo = new THREE.TorusGeometry(ringR, 0.15, 2, 64);
+              const ringMat = new THREE.MeshBasicMaterial({
+                color: isStar ? '#ffcc00' : accentColor,
                 transparent: true,
-                opacity: 0.5,
-                roughness: 0.9
-              });
-              const ring = new THREE.Mesh(ringGeo, ringMat);
-              ring.rotation.x = Math.PI / 2 + Math.random() * 0.4;
-              ring.rotation.y = Math.random() * 0.4;
-              group.add(ring);
-            } else {
-              // Atmosphere
-              const atmoGeo = new THREE.SphereGeometry(r * 1.15, 32, 32);
-              const atmoMat = new THREE.MeshStandardMaterial({
-                color: colors[1],
-                transparent: true,
-                opacity: 0.2,
-                roughness: 1,
+                opacity: 0.4 - (i * 0.15),
                 blending: THREE.AdditiveBlending
               });
-              const atmo = new THREE.Mesh(atmoGeo, atmoMat);
-              group.add(atmo);
+              const ring = new THREE.Mesh(ringGeo, ringMat);
+              ring.rotation.x = Math.PI / 2 + (Math.random() * 0.3 - 0.15);
+              ring.rotation.y = (Math.random() * 0.3 - 0.15);
+              group.add(ring);
+              
+              const orbitGeo = new THREE.RingGeometry(ringR - 0.4, ringR - 0.3, 64);
+              const orbitMat = new THREE.MeshBasicMaterial({
+                color: '#ffffff',
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.15,
+                blending: THREE.AdditiveBlending
+              });
+              const orbit = new THREE.Mesh(orbitGeo, orbitMat);
+              orbit.rotation.copy(ring.rotation);
+              group.add(orbit);
             }
           }
 
+          // 4. Glowing Atmosphere
+          const glowGeo = new THREE.SphereGeometry(r * 1.3, 32, 32);
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: mainColor,
+            transparent: true,
+            opacity: isStar ? 0.25 : 0.12,
+            blending: THREE.AdditiveBlending,
+            side: THREE.BackSide
+          });
+          const glow = new THREE.Mesh(glowGeo, glowMat);
+          group.add(glow);
+
+          // 5. Orbiting Satellites
+          const particleCount = isStar ? 15 : 6;
+          const particlesGeo = new THREE.BufferGeometry();
+          const posArray = new Float32Array(particleCount * 3);
+          for(let i=0; i<particleCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = r * (1.8 + Math.random() * 1.5);
+            const height = (Math.random() - 0.5) * r * 1.5;
+            posArray[i*3] = Math.cos(angle) * radius;
+            posArray[i*3+1] = height;
+            posArray[i*3+2] = Math.sin(angle) * radius;
+          }
+          particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+          const particlesMat = new THREE.PointsMaterial({
+            color: '#ffffff',
+            size: 1.5,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
+          });
+          const particles = new THREE.Points(particlesGeo, particlesMat);
+          group.add(particles);
+
+          // 6. Selection Highlight Ring (Hidden by default)
+          const highlightGeo = new THREE.TorusGeometry(r * 2.2, 0.6, 16, 64);
+          const highlightMat = new THREE.MeshBasicMaterial({
+            color: '#00ffcc',
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending
+          });
+          const highlightRing = new THREE.Mesh(highlightGeo, highlightMat);
+          highlightRing.visible = (state.linkSourceId === node.id);
+          highlightRing.rotation.x = Math.PI / 2;
+          group.add(highlightRing);
+          
+          node.__highlightRing = highlightRing;
+
           return group;
         })
-        .linkColor(() => 'rgba(100, 150, 255, 0.2)')
-        .linkWidth(1.5)
+        // --- 万有引力与大气拉扯视觉效果 ---
+        .linkMaterial(link => {
+          if (!window.THREE) return null;
+          return new THREE.MeshBasicMaterial({
+            color: '#55bbff',
+            transparent: true,
+            opacity: 0.15, // 轻柔的大气拖尾
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+          });
+        })
+        .linkWidth(8) // 加粗，模拟大气层的延伸融合
+        .linkCurvature(0.12) // 微小的弧线，增加引力拉扯的有机感
         .linkDirectionalParticles(link => 2 + Math.floor(Math.random() * 2))
-        .linkDirectionalParticleWidth(1.8)
-        .linkDirectionalParticleSpeed(0.006)
-        .linkDirectionalParticleColor(() => '#aaccff')
+        .linkDirectionalParticleWidth(5) // 内部流动的引力能量球
+        .linkDirectionalParticleResolution(16)
+        .linkDirectionalParticleSpeed(0.004)
+        .linkDirectionalParticleColor(() => 'rgba(200, 240, 255, 0.9)')
         .onNodeHover((node) => {
           els.canvas.style.cursor = node ? 'pointer' : null;
           if (node) {
@@ -1572,26 +1615,120 @@
           hideGraphMenu();
         });
 
+      // 调整物理引擎参数，防止文件球“黏在一起”重叠，拉开它们的初始距离
+      graph3D.d3Force('charge').strength(-800); // 增强节点间的排斥力
+      graph3D.d3Force('link').distance(180);    // 拉长连接的初始距离，给大气视觉留出空间
+
       update3DGraph();
       
       if (window.THREE) {
         const scene = graph3D.scene();
+        
+        // 1. Generate soft circle texture for stars and nebulae
+        const createSoftCircle = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 128;
+          canvas.height = 128;
+          const context = canvas.getContext('2d');
+          const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+          gradient.addColorStop(0, 'rgba(255,255,255,1)');
+          gradient.addColorStop(0.2, 'rgba(255,255,255,0.8)');
+          gradient.addColorStop(0.5, 'rgba(255,255,255,0.2)');
+          gradient.addColorStop(1, 'rgba(255,255,255,0)');
+          context.fillStyle = gradient;
+          context.fillRect(0, 0, 128, 128);
+          const texture = new THREE.CanvasTexture(canvas);
+          return texture;
+        };
+        const particleTexture = createSoftCircle();
+
+        // 2. Base Starfield (Sparse, Multi-colored)
+        const starCount = 4000;
         const starGeo = new THREE.BufferGeometry();
-        const starCount = 2500;
-        const starPositions = new Float32Array(starCount * 3);
-        for(let i=0; i < starCount * 3; i++) {
-          starPositions[i] = (Math.random() - 0.5) * 4000;
+        const starPos = new Float32Array(starCount * 3);
+        const starColors = new Float32Array(starCount * 3);
+        const colorPalette = [
+          new THREE.Color('#ffffff'), // White
+          new THREE.Color('#ffe2b4'), // Orange/Yellow
+          new THREE.Color('#b4d0ff'), // Blue
+          new THREE.Color('#ffb4b4'), // Red
+        ];
+        
+        for(let i=0; i < starCount; i++) {
+          // Avoid the exact center to create a subtle "cosmic void" effect in the immediate foreground
+          let r = 500 + Math.random() * 3500;
+          let theta = Math.random() * 2 * Math.PI;
+          let phi = Math.acos(Math.random() * 2 - 1);
+          
+          starPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+          starPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+          starPos[i*3+2] = r * Math.cos(phi);
+          
+          const col = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+          starColors[i*3] = col.r;
+          starColors[i*3+1] = col.g;
+          starColors[i*3+2] = col.b;
         }
-        starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+        
         const starMat = new THREE.PointsMaterial({
-          color: 0xffffff, 
-          size: 1.8, 
-          transparent: true, 
-          opacity: 0.6,
-          sizeAttenuation: true
+          size: 3.5,
+          vertexColors: true,
+          map: particleTexture,
+          transparent: true,
+          opacity: 0.8,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
         });
         const stars = new THREE.Points(starGeo, starMat);
         scene.add(stars);
+
+        // 3. Nebula Dust Clouds (e.g. Pillars of Creation style)
+        const createNebulaLayer = (cloudCount, colorStr, sizeMult, opacity, radiusDist) => {
+          const cloudGeo = new THREE.BufferGeometry();
+          const cloudPos = new Float32Array(cloudCount * 3);
+          
+          // Use Perlin-like clustered distribution
+          let cx = (Math.random() - 0.5) * 1000;
+          let cy = (Math.random() - 0.5) * 1000;
+          let cz = (Math.random() - 0.5) * 1000;
+          
+          for(let i=0; i < cloudCount; i++) {
+            // Cluster around center point
+            cloudPos[i*3] = cx + (Math.random() - 0.5) * radiusDist;
+            cloudPos[i*3+1] = cy + (Math.random() - 0.5) * radiusDist * 1.5; // Stretch vertically
+            cloudPos[i*3+2] = cz + (Math.random() - 0.5) * radiusDist;
+            
+            // Slowly drift center to make a streak/pillar
+            cx += (Math.random() - 0.5) * 150;
+            cy += (Math.random() - 0.5) * 150;
+            cz += (Math.random() - 0.5) * 150;
+          }
+          cloudGeo.setAttribute('position', new THREE.BufferAttribute(cloudPos, 3));
+          const cloudMat = new THREE.PointsMaterial({
+            color: colorStr,
+            size: sizeMult,
+            map: particleTexture,
+            transparent: true,
+            opacity: opacity,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+          });
+          return new THREE.Points(cloudGeo, cloudMat);
+        };
+
+        // Deep blue background nebula
+        scene.add(createNebulaLayer(300, '#0a1a4a', 600, 0.2, 1800));
+        scene.add(createNebulaLayer(300, '#100a3a', 800, 0.15, 2000));
+        
+        // Vibrant pillars/streaks
+        scene.add(createNebulaLayer(150, '#882255', 400, 0.25, 600)); // Magenta/Red
+        scene.add(createNebulaLayer(150, '#226688', 500, 0.25, 800)); // Teal/Cyan
+        scene.add(createNebulaLayer(100, '#885522', 350, 0.3, 500));  // Gold/Orange
+        
+        // Ambient background color adjustment
+        graph3D.backgroundColor('#020206');
       }
 
       resizeObserver = new ResizeObserver(() => {
@@ -1602,6 +1739,35 @@
     }
 
     loadGraph().catch(error => {
+      els.formError.textContent = error.message || '图谱加载失败';
+    });
+    setInterval(() => {
+      loadGraph().catch(() => {});
+    }, 15000);
+  </script>
+</body>
+</html>
+ment
+        graph3D.backgroundColor('#020206');
+      }
+
+      resizeObserver = new ResizeObserver(() => {
+        const rect = els.canvas.getBoundingClientRect();
+        graph3D.width(rect.width).height(rect.height);
+      });
+      resizeObserver.observe(els.canvas);
+    }
+
+    loadGraph().catch(error => {
+      els.formError.textContent = error.message || '图谱加载失败';
+    });
+    setInterval(() => {
+      loadGraph().catch(() => {});
+    }, 15000);
+  </script>
+</body>
+</html>
+ph().catch(error => {
       els.formError.textContent = error.message || '图谱加载失败';
     });
     setInterval(() => {

@@ -490,12 +490,38 @@
 
     /* Dashboard */
     .dashboard-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
-    .report-toolbar { display: grid; grid-template-columns: 1fr 180px auto; gap: 12px; margin-bottom: 16px; align-items: end; }
-    .report-table-wrap { border: 1px solid var(--color-border-light); border-radius: 10px; overflow: auto; background: var(--color-bg-card); }
+    .report-layout { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+    .report-sidebar { background: var(--color-bg-card); border: 1px solid var(--color-border-light); border-radius: 12px; padding: 16px; }
+    .report-sidebar-title { font-size: 12px; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+    .report-config-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+    .report-config-item { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; transition: background .15s; }
+    .report-config-item:hover { background: var(--color-bg-secondary); }
+    .report-config-item.active { background: var(--color-primary-light, #e8f0fe); color: var(--color-primary); font-weight: 500; }
+    .report-config-item .rc-del { margin-left: auto; opacity: 0; font-size: 11px; color: var(--color-text-light); }
+    .report-config-item:hover .rc-del { opacity: 1; }
+    .report-main { display: flex; flex-direction: column; gap: 12px; }
+    .report-editor-card { background: var(--color-bg-card); border: 1px solid var(--color-border-light); border-radius: 12px; padding: 16px; }
+    .report-sql-editor { width: 100%; min-height: 110px; font-family: 'SF Mono', 'Consolas', monospace; font-size: 13px; line-height: 1.6; padding: 12px; border: 1px solid var(--color-border-light); border-radius: 8px; background: var(--color-bg-secondary); color: var(--color-text-primary); resize: vertical; outline: none; box-sizing: border-box; }
+    .report-sql-editor:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(0,122,255,.08); }
+    .report-editor-toolbar { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+    .report-table-wrap { border: 1px solid var(--color-border-light); border-radius: 10px; overflow: auto; background: var(--color-bg-card); max-height: 540px; }
     .report-table { width: 100%; border-collapse: collapse; min-width: 780px; }
+    .report-table.rt-stripe tbody tr:nth-child(even) { background: var(--color-bg-secondary); }
+    .report-table.rt-border-full th, .report-table.rt-border-full td { border: 1px solid var(--color-border-light); }
+    .report-table.rt-border-none th, .report-table.rt-border-none td { border-bottom: none; }
+    .report-table.rt-compact th, .report-table.rt-compact td { padding: 6px 10px; font-size: 12px; }
+    .report-table.rt-large th, .report-table.rt-large td { padding: 13px 16px; font-size: 14px; }
     .report-table th, .report-table td { padding: 10px 12px; border-bottom: 1px solid var(--color-border-light); text-align: left; font-size: 13px; white-space: nowrap; }
-    .report-table th { position: sticky; top: 0; background: var(--color-bg-secondary); z-index: 1; }
-    .report-meta { display: flex; gap: 12px; color: var(--color-text-secondary); font-size: 12px; margin: 8px 0 12px; }
+    .report-table th { position: sticky; top: 0; background: var(--color-bg-secondary); z-index: 1; font-weight: 600; }
+    .report-table.rt-header-dark th { background: #1d1d1f; color: #fff; }
+    .report-table.rt-header-blue th { background: var(--color-primary); color: #fff; }
+    .report-meta { display: flex; gap: 12px; color: var(--color-text-secondary); font-size: 12px; margin: 8px 0 10px; }
+    .report-style-panel { background: var(--color-bg-card); border: 1px solid var(--color-border-light); border-radius: 12px; padding: 16px; }
+    .report-style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .report-headers-panel { background: var(--color-bg-card); border: 1px solid var(--color-border-light); border-radius: 12px; padding: 16px; }
+    .report-headers-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; }
+    .report-save-row { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--color-border-light); margin-top: 12px; }
+    @media (max-width: 768px) { .report-layout { grid-template-columns: 1fr; } .report-style-grid { grid-template-columns: 1fr 1fr; } }
     .dash-card {
       background: var(--color-bg-card); border-radius: 16px; padding: 28px 24px;
       border: 1px solid var(--color-border-light); box-shadow: var(--shadow-card);
@@ -1000,6 +1026,27 @@
     .settings-section { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--color-border-light); }
     .settings-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
     .settings-section-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--color-text-secondary); }
+    .ops-layout { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    .ops-card {
+      border: 1px solid var(--color-border-light);
+      background: var(--color-bg-card);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .ops-card-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+    .ops-card-title { font-size: 15px; font-weight: 700; color: var(--color-text-primary); }
+    .ops-card-sub { font-size: 12px; color: var(--color-text-secondary); }
+    .feature-list { display: flex; flex-direction: column; gap: 8px; }
+    .feature-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg-secondary);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .feature-item-name { font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+    .feature-item-desc { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+    .settings-actions-bar { margin-top: 16px; }
     .cc-settings-list { display: flex; flex-direction: column; gap: 12px; }
     .cc-settings-item {
       border: 1px solid var(--color-border);
@@ -2428,7 +2475,7 @@
                     <button class="file-action-btn" @click="openVersions(file)" title="版本历史">🕒</button>
                     <button class="file-action-btn download" @click="downloadFile(file)" title="下载">⬇</button>
                     <button class="file-action-btn" @click="openSendFileModal(file)" title="发送给用户">📤</button>
-                    <button v-if="canEdit(file.type)" class="file-action-btn edit" @click="openFileEditor(file)" title="编辑">✎</button>
+                    <button v-if="canEdit(file.type) && (!file.access || file.access.can_edit)" class="file-action-btn edit" @click="openFileEditor(file)" title="编辑">✎</button>
                     <button class="file-action-btn delete" @click="deleteFile(file.id)" title="删除">✕</button>
                   </div>
                 </div>
@@ -2884,41 +2931,137 @@
     <div v-if="currentTab === 'reports'" key="reports" class="main-wide">
       <div class="page-hero">
         <h2>报表中心</h2>
-        <p>从指定数据库读取数据并可视化查看</p>
+        <p>自定义 SQL 查询，配置表头与展示样式</p>
       </div>
-      <div class="card">
-        <div class="report-toolbar">
-          <div>
-            <div class="section-title" style="margin-bottom: 6px;">数据表</div>
-            <select class="form-input form-select" v-model="reportSelectedTable">
-              <option value="">请选择数据表</option>
-              <option v-for="t in reportTables" :key="t" :value="t">{{ t }}</option>
-            </select>
+      <div class="report-layout">
+        <!-- 左侧：已保存报表列表 -->
+        <div class="report-sidebar">
+          <div class="report-sidebar-title">已保存报表</div>
+          <div class="report-config-list">
+            <div v-if="reportConfigs.length === 0" style="font-size:12px;color:var(--color-text-light);padding:4px 0;">暂无保存的报表</div>
+            <div v-for="cfg in reportConfigs" :key="cfg.id"
+                 class="report-config-item" :class="{ active: reportActiveConfigId === cfg.id }"
+                 @click="loadReportConfig(cfg)">
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ cfg.name }}</span>
+              <span class="rc-del" @click.stop="deleteReportConfig(cfg.id)" title="删除">✕</span>
+            </div>
           </div>
-          <div>
-            <div class="section-title" style="margin-bottom: 6px;">展示条数</div>
-            <input class="form-input" type="number" min="1" max="1000" v-model.number="reportLimit">
+          <button class="btn btn-outline" style="width:100%;font-size:12px;" @click="newReportConfig">+ 新建报表</button>
+        </div>
+
+        <!-- 右侧：编辑区 -->
+        <div class="report-main">
+          <!-- SQL 编辑器 -->
+          <div class="report-editor-card">
+            <div class="section-title" style="margin-bottom:8px;">SQL 查询</div>
+            <textarea class="report-sql-editor" v-model="reportSql" placeholder="SELECT * FROM your_table WHERE ... LIMIT 100" spellcheck="false"></textarea>
+            <div class="report-editor-toolbar">
+              <button class="btn btn-primary" style="width:auto;" @click="runReportQuery" :disabled="reportLoading">
+                {{ reportLoading ? '查询中...' : '▶ 执行查询' }}
+              </button>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:12px;color:var(--color-text-secondary);">最大行数</span>
+                <input class="form-input" type="number" min="1" max="2000" v-model.number="reportLimit" style="width:80px;padding:4px 8px;font-size:12px;">
+              </div>
+              <div v-if="reportDbPath" style="font-size:11px;color:var(--color-text-light);margin-left:auto;">DB: {{ reportDbPath }}</div>
+            </div>
+            <div v-if="reportError" class="login-error" style="margin-top:10px;text-align:left;">{{ reportError }}</div>
           </div>
-          <button class="btn btn-primary" style="width:auto;" @click="loadReportData" :disabled="reportLoading || !reportSelectedTable">{{ reportLoading ? '加载中...' : '查询' }}</button>
+
+          <!-- 结果表格 -->
+          <div v-if="reportColumns.length" class="report-editor-card" style="padding:0;overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--color-border-light);">
+              <span style="font-size:13px;font-weight:600;">查询结果</span>
+              <span style="font-size:12px;color:var(--color-text-secondary);">共 {{ reportTotal }} 行，显示 {{ reportRows.length }} 行</span>
+            </div>
+            <div class="report-table-wrap" style="border:none;border-radius:0;">
+              <table class="report-table" :class="reportTableClasses">
+                <thead>
+                  <tr>
+                    <th v-for="c in reportColumns" :key="c"
+                        :style="{ textAlign: reportAlignments[c] || 'left' }">
+                      {{ reportHeaders[c] || c }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(r, idx) in reportRows" :key="idx">
+                    <td v-for="c in reportColumns" :key="c"
+                        :style="{ textAlign: reportAlignments[c] || 'left' }">
+                      {{ r[c] == null ? '' : r[c] }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 表头配置 -->
+          <div v-if="reportColumns.length" class="report-headers-panel">
+            <div class="section-title" style="margin-bottom:12px;">表头配置 <span style="font-weight:400;font-size:11px;color:var(--color-text-light);">（可自定义列的显示名称与对齐方式）</span></div>
+            <div style="display:grid;grid-template-columns:auto 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px;">
+              <span style="font-size:11px;color:var(--color-text-secondary);">原始列名</span>
+              <span style="font-size:11px;color:var(--color-text-secondary);">显示名称</span>
+              <span style="font-size:11px;color:var(--color-text-secondary);">对齐方式</span>
+              <span></span>
+            </div>
+            <div v-for="c in reportColumns" :key="c" style="display:grid;grid-template-columns:auto 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px;">
+              <span style="font-size:12px;font-family:monospace;color:var(--color-text-secondary);white-space:nowrap;">{{ c }}</span>
+              <input class="form-input" style="padding:5px 8px;font-size:12px;" :placeholder="c" v-model="reportHeaders[c]">
+              <select class="form-input form-select" style="padding:5px 8px;font-size:12px;" v-model="reportAlignments[c]">
+                <option value="">默认左对齐</option>
+                <option value="left">左对齐</option>
+                <option value="center">居中</option>
+                <option value="right">右对齐</option>
+              </select>
+              <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;" @click="reportHeaders[c]='';reportAlignments[c]=''">清除</button>
+            </div>
+          </div>
+
+          <!-- 样式配置 -->
+          <div class="report-style-panel">
+            <div class="section-title" style="margin-bottom:12px;">样式配置</div>
+            <div class="report-style-grid">
+              <div>
+                <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px;">行间距</div>
+                <select class="form-input form-select" style="font-size:12px;" v-model="reportStyle.size">
+                  <option value="">默认</option>
+                  <option value="compact">紧凑</option>
+                  <option value="large">宽松</option>
+                </select>
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px;">边框样式</div>
+                <select class="form-input form-select" style="font-size:12px;" v-model="reportStyle.border">
+                  <option value="">默认（行分隔）</option>
+                  <option value="full">全边框</option>
+                  <option value="none">无边框</option>
+                </select>
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px;">表头颜色</div>
+                <select class="form-input form-select" style="font-size:12px;" v-model="reportStyle.header">
+                  <option value="">默认灰色</option>
+                  <option value="dark">深色</option>
+                  <option value="blue">蓝色</option>
+                </select>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;padding-top:4px;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                  <input type="checkbox" v-model="reportStyle.stripe"> 斑马纹
+                </label>
+              </div>
+            </div>
+
+            <!-- 保存报表 -->
+            <div class="report-save-row">
+              <input class="form-input" style="flex:1;padding:6px 10px;font-size:13px;" placeholder="报表名称" v-model="reportSaveName">
+              <button class="btn btn-primary" style="width:auto;" @click="saveReportConfig" :disabled="!reportSaveName.trim() || !reportSql.trim()">保存报表</button>
+              <button v-if="reportActiveConfigId" class="btn btn-outline" style="width:auto;" @click="updateReportConfig">更新当前</button>
+            </div>
+            <div v-if="reportSaveMsg" style="font-size:12px;color:var(--color-primary);margin-top:6px;">{{ reportSaveMsg }}</div>
+          </div>
         </div>
-        <div class="report-meta" v-if="reportDbPath || reportTotal >= 0">
-          <span v-if="reportDbPath">数据库: {{ reportDbPath }}</span>
-          <span v-if="reportTotal >= 0">总行数: {{ reportTotal }}</span>
-        </div>
-        <div v-if="reportError" class="login-error" style="text-align:left;">{{ reportError }}</div>
-        <div class="report-table-wrap" v-if="reportColumns.length">
-          <table class="report-table">
-            <thead>
-              <tr><th v-for="c in reportColumns" :key="c">{{ c }}</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="(r, idx) in reportRows" :key="idx">
-                <td v-for="c in reportColumns" :key="c">{{ r[c] }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div v-else class="empty">暂无数据</div>
       </div>
     </div>
 
@@ -2928,8 +3071,43 @@
         <h2>系统设置</h2>
         <p>全局系统参数与大模型配置</p>
       </div>
-      <div class="profile-layout" style="display: block; max-width: 720px; margin: 0 auto;">
-        <div class="profile-settings-card">
+      <div class="profile-layout" style="display: block; max-width: 1120px; margin: 0 auto;">
+        <div class="ops-layout" style="margin-bottom: 16px;">
+          <div class="ops-card">
+            <div class="ops-card-head">
+              <div class="ops-card-title">平台功能开关</div>
+              <div class="ops-card-sub">由平台运维控制模块是否上线</div>
+            </div>
+            <div class="feature-list">
+              <div class="feature-item">
+                <div>
+                  <div class="feature-item-name">报表中心</div>
+                  <div class="feature-item-desc">关闭后授权用户也不可访问</div>
+                </div>
+                <label class="perm-toggle" :class="{ active: settings.feature_report_enabled !== false }">
+                  <input type="checkbox" v-model="settings.feature_report_enabled">
+                  上线
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="ops-card">
+            <div v-if="false" class="ops-card-head" style="margin-bottom: 8px;">
+              <div class="ops-card-title">模型配置管理</div>
+              <div class="ops-card-sub">用于知识问答与兜底回答的模型接入</div>
+            </div>
+            <button class="btn btn-outline" style="padding: 4px 8px; font-size: 12px; margin-bottom: 8px;" @click="addLlmConfig">+ 添加模型</button>
+            <div class="ops-card-sub">在下方进行编辑与启用切换</div>
+          </div>
+        </div>
+        <div class="profile-settings-card" style="max-width: 1120px;">
+          <div v-if="false" class="settings-section">
+            <div class="settings-section-title">功能开关</div>
+            <label class="perm-toggle" :class="{ active: settings.feature_report_enabled !== false }">
+              <input type="checkbox" v-model="settings.feature_report_enabled">
+              报表中心上线
+            </label>
+          </div>
           <div class="settings-card-title" style="display: flex; justify-content: space-between; align-items: center;">
             <span>LLM 配置列表</span>
             <button class="btn btn-outline" style="padding: 4px 8px; font-size: 12px;" @click="addLlmConfig">+ 添加模型</button>
@@ -3586,17 +3764,39 @@ createApp({
 
     // Tab
     const currentTab = ref('overview')
-    const settings = ref({ llm_base_url: '', llm_model: '', llm_api_key: '', llm_configs: '[]', active_llm_index: 0 })
+    const settings = ref({ llm_base_url: '', llm_model: '', llm_api_key: '', llm_configs: '[]', active_llm_index: 0, feature_report_enabled: true })
     const reportAccessVisible = ref(false)
+    const reportFeatureOnline = ref(true)
     const reportTables = ref([])
     const reportSelectedTable = ref('')
     const reportColumns = ref([])
     const reportRows = ref([])
     const reportTotal = ref(-1)
-    const reportLimit = ref(200)
+    const reportLimit = ref(500)
     const reportLoading = ref(false)
     const reportError = ref('')
     const reportDbPath = ref('')
+    // Custom SQL report center
+    const reportSql = ref('')
+    const reportHeaders = ref({})
+    const reportAlignments = ref({})
+    const reportStyle = ref({ stripe: false, size: '', border: '', header: '', alignment: {} })
+    const reportConfigs = ref([])
+    const reportActiveConfigId = ref(null)
+    const reportSaveName = ref('')
+    const reportSaveMsg = ref('')
+    const reportTableClasses = computed(() => {
+      const s = reportStyle.value
+      const cls = []
+      if (s.stripe) cls.push('rt-stripe')
+      if (s.size === 'compact') cls.push('rt-compact')
+      if (s.size === 'large') cls.push('rt-large')
+      if (s.border === 'full') cls.push('rt-border-full')
+      if (s.border === 'none') cls.push('rt-border-none')
+      if (s.header === 'dark') cls.push('rt-header-dark')
+      if (s.header === 'blue') cls.push('rt-header-blue')
+      return cls
+    })
     const parsedConfigs = ref([])
     const settingsMessage = ref('')
     const testingLlmIndex = ref(-1)
@@ -3717,7 +3917,18 @@ createApp({
       
       // Root level files
       const rootNode = { path: '', name: '根目录', ...folderMap[''] }
-      return { rootNode, tree }
+      function countNodeFiles(node) {
+        if (!node) return 0
+        const selfCount = node.files ? node.files.length : 0
+        const childCount = (node.children || []).reduce((sum, child) => sum + countNodeFiles(child), 0)
+        return selfCount + childCount
+      }
+      function pruneNodes(nodes) {
+        return (nodes || [])
+          .map(node => ({ ...node, children: pruneNodes(node.children || []) }))
+          .filter(node => countNodeFiles(node) > 0)
+      }
+      return { rootNode, tree: pruneNodes(tree), countNodeFiles }
     })
 
     const rootFileCount = computed(() => {
@@ -4105,9 +4316,7 @@ createApp({
         const isDropTarget = dropTargetFolder.value === node.path
         const isExpanded = expandedFolders[node.path]
         const isDragging = draggingFolder.value === node.path
-        const fileCount = node.files ? node.files.length : 0
-        const childCount = node.children ? node.children.length : 0
-        const totalCount = fileCount + childCount
+        const totalCount = folderTree.value.countNodeFiles(node)
 
         const children = []
         // Folder row
@@ -4168,8 +4377,8 @@ createApp({
       const isRootDropTarget = dropTargetFolder.value === ''
       const isRootExpanded = expandedFolders['__root']
       const rootFileCount = root.files ? root.files.length : 0
-      const rootChildCount = folderTree.value.tree ? folderTree.value.tree.length : 0
-      const rootTotal = rootFileCount + rootChildCount
+      const rootChildFileCount = (folderTree.value.tree || []).reduce((sum, n) => sum + folderTree.value.countNodeFiles(n), 0)
+      const rootTotal = rootFileCount + rootChildFileCount
 
       const children = []
       
@@ -4545,11 +4754,15 @@ createApp({
 
     // Tab switching
     async function switchTab(tab) {
+      if (tab === 'reports' && currentUser.value.role !== 'admin' && !reportFeatureOnline.value) {
+        toast('该功能目前已下线')
+        return
+      }
       currentTab.value = tab
       if (tab !== 'files') { previewOpen.value = false; editorOpen.value = false }
       if (tab === 'overview') loadDashboard()
       if (tab === 'files') { loadFolders(); loadFiles(); loadAllFilesMeta(); loadFavorites(); loadWorkspaces() }
-      if (tab === 'reports') { loadReportTables(); if (reportSelectedTable.value) loadReportData() }
+      if (tab === 'reports') { loadReportTables(); loadReportConfigs() }
       if (tab === 'todos') loadTodos()
       if (tab === 'settings') fetchSettings()
       if (tab === 'members') {
@@ -4584,42 +4797,149 @@ createApp({
       try {
         const res = await api('/reports/access')
         reportAccessVisible.value = !!(res && res.visible)
+        reportFeatureOnline.value = !(res && res.online === false)
       } catch(e) {
         reportAccessVisible.value = false
+        reportFeatureOnline.value = true
       }
     }
 
     async function loadReportTables() {
-      reportError.value = ''
+      // Keep for db_path info
       try {
         const res = await api('/reports/tables')
         reportTables.value = res?.tables || []
         reportDbPath.value = res?.db_path || ''
-        if (!reportSelectedTable.value && reportTables.value.length) {
-          reportSelectedTable.value = reportTables.value[0]
-        }
-      } catch(e) {
-        reportError.value = e.message || '报表表清单加载失败'
-      }
+      } catch(e) {}
     }
 
     async function loadReportData() {
-      if (!reportSelectedTable.value) return
+      // Legacy - kept for compatibility
+    }
+
+    async function runReportQuery() {
+      if (!reportSql.value.trim()) return
       reportLoading.value = true
       reportError.value = ''
       try {
-        const res = await api(`/reports/data?table=${encodeURIComponent(reportSelectedTable.value)}&limit=${reportLimit.value || 200}`)
-        reportColumns.value = res?.columns || []
+        const res = await api('/reports/query', {
+          method: 'POST',
+          body: JSON.stringify({ sql: reportSql.value, limit: reportLimit.value || 500 })
+        })
+        const cols = res?.columns || []
+        reportColumns.value = cols
         reportRows.value = res?.rows || []
         reportTotal.value = Number(res?.total ?? -1)
+        reportDbPath.value = res?.db_path || reportDbPath.value
+        // Preserve existing headers/alignments for columns that already exist; init new ones
+        const newHeaders = {}
+        const newAligns = {}
+        cols.forEach(c => {
+          newHeaders[c] = reportHeaders.value[c] || ''
+          newAligns[c] = reportAlignments.value[c] || ''
+        })
+        reportHeaders.value = newHeaders
+        reportAlignments.value = newAligns
       } catch(e) {
         reportColumns.value = []
         reportRows.value = []
         reportTotal.value = -1
-        reportError.value = e.message || '报表数据加载失败'
+        reportError.value = e.message || '查询失败'
       } finally {
         reportLoading.value = false
       }
+    }
+
+    async function loadReportConfigs() {
+      try {
+        const res = await api('/reports/configs')
+        reportConfigs.value = res?.configs || []
+      } catch(e) {}
+    }
+
+    function newReportConfig() {
+      reportActiveConfigId.value = null
+      reportSql.value = ''
+      reportHeaders.value = {}
+      reportAlignments.value = {}
+      reportStyle.value = { stripe: false, size: '', border: '', header: '', alignment: {} }
+      reportColumns.value = []
+      reportRows.value = []
+      reportTotal.value = -1
+      reportError.value = ''
+      reportSaveName.value = ''
+      reportSaveMsg.value = ''
+    }
+
+    function loadReportConfig(cfg) {
+      reportActiveConfigId.value = cfg.id
+      reportSql.value = cfg.sql_query || ''
+      reportSaveName.value = cfg.name || ''
+      reportSaveMsg.value = ''
+      const style = cfg.style_config || {}
+      reportStyle.value = {
+        stripe: !!style.stripe,
+        size: style.size || '',
+        border: style.border || '',
+        header: style.header || '',
+        alignment: style.alignment || {}
+      }
+      const hdrs = cfg.column_headers || {}
+      const aligns = style.alignment || {}
+      reportHeaders.value = { ...hdrs }
+      reportAlignments.value = { ...aligns }
+      // Run the query immediately
+      runReportQuery()
+    }
+
+    async function saveReportConfig() {
+      if (!reportSaveName.value.trim() || !reportSql.value.trim()) return
+      reportSaveMsg.value = ''
+      try {
+        const style = { ...reportStyle.value, alignment: { ...reportAlignments.value } }
+        const body = {
+          name: reportSaveName.value.trim(),
+          sql_query: reportSql.value.trim(),
+          column_headers: { ...reportHeaders.value },
+          style_config: style
+        }
+        const res = await api('/reports/configs', { method: 'POST', body: JSON.stringify(body) })
+        reportActiveConfigId.value = res.id
+        await loadReportConfigs()
+        reportSaveMsg.value = '已保存'
+        setTimeout(() => reportSaveMsg.value = '', 2500)
+      } catch(e) {
+        reportSaveMsg.value = e.message || '保存失败'
+      }
+    }
+
+    async function updateReportConfig() {
+      if (!reportActiveConfigId.value) return
+      reportSaveMsg.value = ''
+      try {
+        const style = { ...reportStyle.value, alignment: { ...reportAlignments.value } }
+        const body = {
+          name: reportSaveName.value.trim() || undefined,
+          sql_query: reportSql.value.trim(),
+          column_headers: { ...reportHeaders.value },
+          style_config: style
+        }
+        await api(`/reports/configs/${reportActiveConfigId.value}`, { method: 'PUT', body: JSON.stringify(body) })
+        await loadReportConfigs()
+        reportSaveMsg.value = '已更新'
+        setTimeout(() => reportSaveMsg.value = '', 2500)
+      } catch(e) {
+        reportSaveMsg.value = e.message || '更新失败'
+      }
+    }
+
+    async function deleteReportConfig(id) {
+      if (!confirm('确认删除此报表配置？')) return
+      try {
+        await api(`/reports/configs/${id}`, { method: 'DELETE' })
+        if (reportActiveConfigId.value === id) newReportConfig()
+        await loadReportConfigs()
+      } catch(e) {}
     }
 
     async function loadMyStats() {
@@ -4633,6 +4953,9 @@ createApp({
         const res = await api('/settings')
         if (res) {
           settings.value = res
+          if (typeof settings.value.feature_report_enabled !== 'boolean') {
+            settings.value.feature_report_enabled = true
+          }
           try {
             parsedConfigs.value = JSON.parse(res.llm_configs || '[]')
           } catch(e) {
@@ -4983,7 +5306,7 @@ createApp({
     async function switchWorkspace(wsId) {
       currentWorkspace.value = wsId
       uploadSettings.value.workspace_id = wsId
-      await loadFiles()
+      await Promise.all([loadFiles(), loadAllFilesMeta()])
     }
 
     async function openPermModal(file) {
@@ -5396,7 +5719,10 @@ createApp({
 
     async function loadAllFilesMeta() {
       try {
-        allFilesMeta.value = await api('/files/meta') || []
+        const params = new URLSearchParams()
+        if (currentWorkspace.value) params.set('workspace_id', currentWorkspace.value)
+        const qs = params.toString()
+        allFilesMeta.value = await api(qs ? `/files/meta?${qs}` : '/files/meta') || []
       } catch(e) {}
     }
 
@@ -5477,7 +5803,10 @@ createApp({
     }
 
     // Editor
-    function canEdit(type) { return ['.txt', '.md', '.docx', '.xlsx', '.csv', '.html', '.htm', '.json', '.xml', '.svg', '.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.less', '.log', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env', '.py', '.java', '.kt', '.swift', '.c', '.h', '.cpp', '.hpp', '.cs', '.go', '.rs', '.rb', '.php', '.r', '.lua', '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1', '.psm1', '.sql', '.pgsql', '.mysql', '.dockerfile', '.tf', '.hcl', '.gradle', '.groovy', '.dart', '.scala', '.db', '.sqlite', '.sqlite3', '.dump', '.dmp', '.bak', '.dat', '.bin', '.tsv', '.xhtml', '.xslt', '.xsd', '.csproj', '.config', '.properties'].includes(type) }
+    function canEdit(type) {
+      const t = String(type || '').toLowerCase()
+      return ['.txt', '.md', '.docx', '.xlsx', '.xls', '.csv', '.pptx', '.html', '.htm', '.json', '.xml', '.svg', '.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.less', '.log', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env', '.py', '.java', '.kt', '.swift', '.c', '.h', '.cpp', '.hpp', '.cs', '.go', '.rs', '.rb', '.php', '.r', '.lua', '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1', '.psm1', '.sql', '.pgsql', '.mysql', '.dockerfile', '.tf', '.hcl', '.gradle', '.groovy', '.dart', '.scala', '.db', '.sqlite', '.sqlite3', '.dump', '.dmp', '.bak', '.dat', '.bin', '.tsv', '.xhtml', '.xslt', '.xsd', '.csproj', '.config', '.properties'].includes(t)
+    }
 
     function openNewDocModal() {
       newDocForm.value = { name: '', type: '.txt', folder: currentFolder.value }
@@ -5485,6 +5814,14 @@ createApp({
     }
 
     function openFileAs(file) {
+      if (file && file.access && file.access.can_view === false) {
+        toast('无查看权限')
+        return
+      }
+      if (file && file.access && file.access.can_edit === false) {
+        openPreview(file.id)
+        return
+      }
       if (canEdit(file.type)) {
         if (['.xlsx', '.xls', '.pptx'].includes(file.type)) {
           openOnlyOffice(file.id)
@@ -5587,6 +5924,10 @@ createApp({
     }
 
     function openFileEditor(file) {
+      if (file && file.access && file.access.can_edit === false) {
+        openPreview(file.id)
+        return
+      }
       const isOwner = file.uploaded_by === currentUser.value.username
       const isAdmin = currentUser.value.role === 'admin'
       const canEditOthers = myPermValues.can_edit_others
@@ -5658,11 +5999,11 @@ createApp({
                 key: data.key,
                 title: data.filename,
                 url: data.document_url,
-                permissions: { edit: true, download: true },
+                permissions: { edit: !!data.can_edit, download: true },
               },
               documentType: data.document_type,
               editorConfig: {
-                mode: 'edit',
+                mode: data.mode || (data.can_edit ? 'edit' : 'view'),
                 user: { name: data.username, id: data.username },
                 callbackUrl: data.callback_url,
               },
@@ -5810,6 +6151,9 @@ createApp({
       settings, settingsMessage, fetchSettings, saveSettings,
       parsedConfigs, addLlmConfig, removeLlmConfig, duplicateLlmConfig, moveLlmConfig, testLlmConfig, testingLlmIndex, llmTestMessage,
       reportAccessVisible, reportTables, reportSelectedTable, reportColumns, reportRows, reportTotal, reportLimit, reportLoading, reportError, reportDbPath,
+      reportSql, reportHeaders, reportAlignments, reportStyle, reportTableClasses,
+      reportConfigs, reportActiveConfigId, reportSaveName, reportSaveMsg,
+      runReportQuery, loadReportConfigs, newReportConfig, loadReportConfig, saveReportConfig, updateReportConfig, deleteReportConfig,
       loadReportTables, loadReportData,
       // Avatar functions
       handleAvatarFile, handleAvatarDrop, doSaveAvatar, doRemoveAvatar,
