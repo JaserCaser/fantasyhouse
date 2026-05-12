@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>知识关联图谱</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563a8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='18' cy='5' r='3'/%3E%3Ccircle cx='6' cy='12' r='3'/%3E%3Ccircle cx='18' cy='19' r='3'/%3E%3Cline x1='8.58' y1='13.5' x2='15.42' y2='17.5'/%3E%3Cline x1='15.42' y1='6.5' x2='8.58' y2='10.5'/%3E%3Cline x1='18' y1='8' x2='18' y2='16'/%3E%3C/svg%3E">
   <style>
     :root {
       --color-bg: #fafaf8;
@@ -304,6 +305,32 @@
       background:
         linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.06));
     }
+
+    .stage.edit-mode {
+      border-color: rgba(138, 255, 234, 0.42);
+      box-shadow: 0 0 0 1px rgba(138, 255, 234, 0.2), 0 18px 60px rgba(7, 168, 201, 0.22);
+    }
+
+    .stage::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      border-radius: inherit;
+      background:
+        radial-gradient(circle at 20% 18%, rgba(110, 192, 255, 0.16), transparent 24%),
+        radial-gradient(circle at 76% 76%, rgba(255, 188, 94, 0.11), transparent 26%),
+        linear-gradient(135deg, rgba(255,255,255,0.08), transparent 35%, rgba(255,255,255,0.03));
+      mix-blend-mode: screen;
+    }
+
+    .stage.edit-mode::after {
+      background:
+        radial-gradient(circle at 20% 18%, rgba(138, 255, 234, 0.24), transparent 25%),
+        radial-gradient(circle at 78% 74%, rgba(255, 210, 138, 0.18), transparent 27%),
+        linear-gradient(135deg, rgba(138,255,234,0.12), transparent 36%, rgba(255,210,138,0.08));
+    }
     [data-theme="dark"] .stage {
       background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
     }
@@ -318,6 +345,108 @@
       justify-content: space-between;
       gap: 12px;
       align-items: center;
+    }
+
+    .stage-guide {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      z-index: 4;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      color: rgba(238, 247, 255, 0.86);
+      background: linear-gradient(135deg, rgba(6, 15, 38, 0.74), rgba(18, 39, 72, 0.52));
+      border: 1px solid rgba(157, 215, 255, 0.18);
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.08);
+      backdrop-filter: blur(14px);
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: opacity var(--duration-normal) ease, transform var(--duration-normal) var(--ease-out);
+    }
+
+    .stage.edit-mode .stage-guide {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .guide-copy {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .guide-kicker {
+      display: block;
+      margin-bottom: 2px;
+      color: #8fd7ff;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .guide-main {
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .guide-source {
+      color: #ffffff;
+      font-weight: 800;
+      word-break: break-all;
+    }
+
+    .guide-steps {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .guide-step {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 24px;
+      padding: 0 9px;
+      border-radius: 999px;
+      color: rgba(224, 242, 255, 0.7);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .guide-step.active {
+      color: #06101f;
+      background: linear-gradient(135deg, #8affea, #ffd28a);
+      border-color: transparent;
+      box-shadow: 0 0 22px rgba(138,255,234,0.24);
+    }
+
+    .guide-step.done {
+      color: #bff9f0;
+      border-color: rgba(138,255,234,0.24);
+      background: rgba(138,255,234,0.1);
+    }
+
+    .stage-guide .mini-button {
+      flex: 0 0 auto;
+      color: #d9f4ff;
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(157, 215, 255, 0.24);
+    }
+
+    .stage-guide .mini-button:disabled {
+      opacity: 0.46;
+      cursor: not-allowed;
+      transform: none;
     }
 
     .badge,
@@ -346,6 +475,8 @@
       height: 100%;
       display: block;
       cursor: grab;
+      position: relative;
+      z-index: 2;
     }
 
     #graphCanvas.dragging {
@@ -354,6 +485,53 @@
 
     #graphCanvas.linking {
       cursor: crosshair;
+    }
+
+    .canvas-target-hint {
+      position: absolute;
+      z-index: 6;
+      left: 0;
+      top: 0;
+      pointer-events: none;
+      max-width: 280px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      color: #ecfbff;
+      background: rgba(3, 11, 30, 0.8);
+      border: 1px solid rgba(138, 255, 234, 0.3);
+      box-shadow: 0 14px 34px rgba(0,0,0,0.34), 0 0 24px rgba(138,255,234,0.14);
+      backdrop-filter: blur(12px);
+      opacity: 0;
+      transform: translate(18px, 18px) scale(0.96);
+      transition: opacity 120ms ease, transform 120ms ease;
+    }
+
+    .canvas-target-hint.show {
+      opacity: 1;
+      transform: translate(18px, 18px) scale(1);
+    }
+
+    .target-hint-kicker {
+      color: #8affea;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .target-hint-title {
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.4;
+      word-break: break-all;
+    }
+
+    .target-hint-sub {
+      margin-top: 4px;
+      color: rgba(224,242,255,0.72);
+      font-size: 11px;
+      line-height: 1.5;
     }
 
     .mode-toggle {
@@ -383,10 +561,16 @@
       box-shadow: var(--shadow-soft);
     }
 
+    .stage.edit-mode .mode-button.active {
+      color: #064b5f;
+      background: linear-gradient(135deg, #98f5ff, #ffd28a);
+      box-shadow: 0 8px 22px rgba(73, 211, 255, 0.24);
+    }
+
     .graph-menu {
       position: absolute;
       z-index: 7;
-      min-width: 170px;
+      min-width: 250px;
       padding: 6px;
       border-radius: 12px;
       background: var(--color-bg-card);
@@ -414,6 +598,52 @@
 
     .graph-menu button:hover {
       background: var(--color-bg-secondary);
+    }
+
+    .graph-menu-section {
+      padding: 6px;
+      border-top: 1px solid var(--color-border-light);
+      margin-top: 4px;
+    }
+
+    .graph-menu-title {
+      padding: 3px 4px 8px;
+      color: var(--color-text-secondary);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .planet-theme-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .graph-menu .planet-theme-option {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      height: 34px;
+      padding: 0 8px;
+      border: 1px solid transparent;
+      background: color-mix(in srgb, var(--color-bg-secondary) 64%, transparent);
+    }
+
+    .graph-menu .planet-theme-option.active {
+      border-color: rgba(138, 255, 234, 0.36);
+      background: linear-gradient(135deg, rgba(138,255,234,0.14), rgba(255,210,138,0.1));
+      color: var(--color-brand);
+    }
+
+    .theme-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+      background: var(--theme-dot, #8affea);
+      box-shadow: 0 0 12px var(--theme-dot, #8affea);
     }
 
     .tooltip {
@@ -719,7 +949,7 @@
       </div>
     </aside>
 
-    <main class="panel stage">
+    <main id="stagePanel" class="panel stage">
       <div class="stage-topbar">
         <div id="stageBadge" class="badge">0 个文件神经元 / 0 条突触 / 0 条日志</div>
         <div class="tool-row">
@@ -731,12 +961,29 @@
           <button id="reloadBtn" class="mini-button" type="button">刷新数据</button>
         </div>
       </div>
+      <div id="editGuide" class="stage-guide" aria-live="polite">
+        <div class="guide-copy">
+          <span class="guide-kicker">Edit Orbit</span>
+          <div id="sourceStatus" class="guide-main">点击一个星球设为起点，再点击另一个星球建立连接。</div>
+          <div class="guide-steps" aria-hidden="true">
+            <span id="stepSource" class="guide-step active">1 选择起点</span>
+            <span id="stepTarget" class="guide-step">2 指向目标</span>
+            <span id="stepConnect" class="guide-step">3 点击连接</span>
+          </div>
+        </div>
+        <button id="clearSourceBtn" class="mini-button" type="button" disabled>取消起点</button>
+      </div>
       <div id="graphCanvas"></div>
+      <div id="targetHint" class="canvas-target-hint"></div>
       <div id="tooltip" class="tooltip"></div>
       <div id="graphContextMenu" class="graph-menu">
         <button type="button" data-graph-action="set-source">设为连接起点</button>
         <button type="button" data-graph-action="connect-target">连接到此文件</button>
         <button type="button" data-graph-action="clear-source">清除起点</button>
+        <div class="graph-menu-section">
+          <div class="graph-menu-title">星球主题</div>
+          <div id="planetThemeGrid" class="planet-theme-grid"></div>
+        </div>
       </div>
     </main>
 
@@ -802,10 +1049,12 @@
       links: [],
       logs: [],
       locks: {},
+      presence: [],
       nodeMap: new Map(),
       canvasMode: 'browse',
       contextNodeId: null,
       linkSourceId: null,
+      candidateTargetId: null,
       hoveredNodeId: null,
       lastMouseX: 0,
       lastMouseY: 0,
@@ -818,6 +1067,12 @@
     };
     let graph3D = null;
     let resizeObserver = null;
+    let spaceshipGroup = null;
+    let spaceshipAnimationId = null;
+    let editPreviewGroup = null;
+    let editPreviewLine = null;
+    let editPreviewSource = null;
+    let editPreviewTarget = null;
 
     function debounce(fn, delay) {
       let timer;
@@ -832,6 +1087,7 @@
       canvas: document.getElementById('graphCanvas'),
       tooltip: document.getElementById('tooltip'),
       graphContextMenu: document.getElementById('graphContextMenu'),
+      planetThemeGrid: document.getElementById('planetThemeGrid'),
       browseModeBtn: document.getElementById('browseModeBtn'),
       editModeBtn: document.getElementById('editModeBtn'),
       sourceSelect: document.getElementById('sourceSelect'),
@@ -840,7 +1096,14 @@
       searchInput: document.getElementById('searchInput'),
       createLinkBtn: document.getElementById('createLinkBtn'),
       formError: document.getElementById('formError'),
+      stagePanel: document.getElementById('stagePanel'),
       stageBadge: document.getElementById('stageBadge'),
+      sourceStatus: document.getElementById('sourceStatus'),
+      stepSource: document.getElementById('stepSource'),
+      stepTarget: document.getElementById('stepTarget'),
+      stepConnect: document.getElementById('stepConnect'),
+      clearSourceBtn: document.getElementById('clearSourceBtn'),
+      targetHint: document.getElementById('targetHint'),
       nodeCount: document.getElementById('nodeCount'),
       linkCount: document.getElementById('linkCount'),
       linkList: document.getElementById('linkList'),
@@ -891,15 +1154,76 @@
     function fileColor(type) {
       const ext = String(type || '').toLowerCase();
       if (resolvedTheme === 'dark') {
-        if (['.md', '.txt', '.docx'].includes(ext)) return ['#7bb3e8', '#4a9ae0'];
-        if (['.xlsx', '.xls', '.csv'].includes(ext)) return ['#86b7f0', '#5d8fd0'];
-        if (['.json', '.js', '.ts', '.py'].includes(ext)) return ['#89a6ff', '#5f74cf'];
-        return ['#c3c1ba', '#7b7970'];
+        if (['.md', '.txt', '.docx', '.doc'].includes(ext)) return ['#9fd7ff', '#38a8ff', '#e7f7ff'];
+        if (['.xlsx', '.xls', '.csv'].includes(ext)) return ['#9ef3c8', '#20c879', '#e6fff2'];
+        if (['.json', '.js', '.ts', '.py'].includes(ext)) return ['#b8b5ff', '#6e7dff', '#f0efff'];
+        if (['.ppt', '.pptx'].includes(ext)) return ['#ffd08a', '#ff8d45', '#fff0d7'];
+        return ['#d4d9e8', '#8793ad', '#ffffff'];
       }
-      if (['.md', '.txt', '.docx'].includes(ext)) return ['#9ec7ef', '#2563a8'];
-      if (['.xlsx', '.xls', '.csv'].includes(ext)) return ['#b7d2f6', '#5f8fcc'];
-      if (['.json', '.js', '.ts', '.py'].includes(ext)) return ['#adc0ff', '#6b7fd8'];
-      return ['#d7d8dd', '#8a8b94'];
+      if (['.md', '.txt', '.docx', '.doc'].includes(ext)) return ['#7fc8ff', '#2563a8', '#e2f4ff'];
+      if (['.xlsx', '.xls', '.csv'].includes(ext)) return ['#86e7b5', '#179b62', '#ddfff0'];
+      if (['.json', '.js', '.ts', '.py'].includes(ext)) return ['#aaa8ff', '#5d65d8', '#f0efff'];
+      if (['.ppt', '.pptx'].includes(ext)) return ['#ffc66f', '#f06e36', '#fff1d6'];
+      return ['#d7dce8', '#7f879b', '#ffffff'];
+    }
+
+    const PLANET_THEMES = [
+      { id: 'auto', label: '自动', dot: '#8affea', colors: null },
+      { id: 'sun', label: '太阳', dot: '#ffcf45', colors: ['#fff2a3', '#ff9f1c', '#fff8d6'], emissive: 1.25, rings: 0, texture: 'star' },
+      { id: 'mercury', label: '水星', dot: '#b8aaa0', colors: ['#c7bbb0', '#6f6862', '#f3eee8'], emissive: 0.1, rings: 0, texture: 'rock' },
+      { id: 'venus', label: '金星', dot: '#f5c16c', colors: ['#ffe0a0', '#c97838', '#fff0cd'], emissive: 0.22, rings: 0, texture: 'cloud' },
+      { id: 'earth', label: '地球', dot: '#48b7ff', colors: ['#4fc3ff', '#1f7f5c', '#e9fbff'], emissive: 0.18, rings: 0, texture: 'ocean' },
+      { id: 'mars', label: '火星', dot: '#e16942', colors: ['#e98658', '#8f321f', '#ffd1ae'], emissive: 0.18, rings: 0, texture: 'rock' },
+      { id: 'jupiter', label: '木星', dot: '#d8a76f', colors: ['#d9b486', '#8d5a36', '#fff3d8'], emissive: 0.18, rings: 0, texture: 'bands' },
+      { id: 'saturn', label: '土星', dot: '#e7c980', colors: ['#e9d18d', '#9f7a45', '#fff3ce'], emissive: 0.16, rings: 2, texture: 'bands' },
+      { id: 'uranus', label: '天王星', dot: '#8ce8e4', colors: ['#98f1ef', '#4da0b4', '#efffff'], emissive: 0.22, rings: 1, texture: 'ice' },
+      { id: 'neptune', label: '海王星', dot: '#5278ff', colors: ['#5c7cff', '#182e91', '#dfe8ff'], emissive: 0.28, rings: 0, texture: 'storm' },
+      { id: 'pluto', label: '冥王星', dot: '#c9b49b', colors: ['#d8c5aa', '#7d6659', '#fff2df'], emissive: 0.08, rings: 0, texture: 'rock' }
+    ];
+
+    const PLANET_THEME_MAP = new Map(PLANET_THEMES.map(theme => [theme.id, theme]));
+
+    function getNodeTheme(node) {
+      const themeId = String(node.planet_theme || 'auto').toLowerCase();
+      return PLANET_THEME_MAP.get(themeId) || PLANET_THEME_MAP.get('auto');
+    }
+
+    function nodeVisualColors(node) {
+      const theme = getNodeTheme(node);
+      return theme.colors || fileColor(node.type);
+    }
+
+    function hashString(value) {
+      return String(value || '').split('').reduce((hash, char) => {
+        return ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+      }, 0);
+    }
+
+    function seededUnit(seed, salt = 0) {
+      const x = Math.sin(seed * 12.9898 + salt * 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    }
+
+    function idsEqual(a, b) {
+      return String(a) === String(b);
+    }
+
+    function normalizePair(a, b) {
+      return [String(a), String(b)].sort();
+    }
+
+    function linkExists(fileId, relatedFileId) {
+      const [a, b] = normalizePair(fileId, relatedFileId);
+      return state.links.some(link => {
+        const [x, y] = normalizePair(link.file_id, link.related_file_id);
+        return x === a && y === b;
+      });
+    }
+
+    function nodeDegree(nodeId) {
+      return state.links.reduce((count, link) => {
+        return count + ((idsEqual(link.file_id, nodeId) || idsEqual(link.related_file_id, nodeId)) ? 1 : 0);
+      }, 0);
     }
 
     function clamp(value, min, max) {
@@ -929,10 +1253,137 @@
     function fileTypeGlyph(type) {
       const ext = String(type || '').toLowerCase();
       if (['.xlsx', '.xls', '.csv'].includes(ext)) return 'XLS';
-      if (['.md', '.txt', '.docx'].includes(ext)) return 'TXT';
+      if (['.md', '.txt', '.docx', '.doc'].includes(ext)) return 'TXT';
       if (['.json', '.js', '.ts', '.py'].includes(ext)) return 'DEV';
       if (['.ppt', '.pptx'].includes(ext)) return 'PPT';
       return 'FILE';
+    }
+
+    function shortFilename(name, max = 18) {
+      const value = String(name || '未命名文件');
+      return value.length > max ? `${value.slice(0, max - 1)}...` : value;
+    }
+
+    function createPlanetTexture(node, colors, seed, theme = PLANET_THEME_MAP.get('auto')) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      const [mainColor, accentColor, shineColor] = colors;
+
+      const glow = ctx.createRadialGradient(86, 70, 8, 128, 128, 150);
+      glow.addColorStop(0, shineColor || '#ffffff');
+      glow.addColorStop(0.34, mainColor);
+      glow.addColorStop(0.74, accentColor);
+      glow.addColorStop(1, '#050816');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, 256, 256);
+
+      if (theme.texture === 'star') {
+        ctx.globalAlpha = 0.34;
+        for (let i = 0; i < 18; i++) {
+          const angle = seededUnit(seed, i) * Math.PI * 2;
+          const length = 70 + seededUnit(seed, i + 30) * 90;
+          ctx.beginPath();
+          ctx.moveTo(128, 128);
+          ctx.lineTo(128 + Math.cos(angle) * length, 128 + Math.sin(angle) * length);
+          ctx.strokeStyle = i % 2 ? '#fff8c9' : accentColor;
+          ctx.lineWidth = 3 + seededUnit(seed, i + 60) * 6;
+          ctx.stroke();
+        }
+      } else {
+        ctx.globalAlpha = theme.texture === 'bands' || theme.texture === 'cloud' ? 0.38 : 0.26;
+        const bandCount = theme.texture === 'bands' ? 14 : 9;
+        for (let i = 0; i < bandCount; i++) {
+          const y = 20 + i * (216 / bandCount) + seededUnit(seed, i) * 12;
+          ctx.beginPath();
+          ctx.ellipse(128, y, 105 + seededUnit(seed, i + 20) * 46, 4 + seededUnit(seed, i + 40) * 10, seededUnit(seed, i + 80) * 0.35, 0, Math.PI * 2);
+          ctx.strokeStyle = i % 2 ? shineColor : accentColor;
+          ctx.lineWidth = 2.5 + seededUnit(seed, i + 100) * 6;
+          ctx.stroke();
+        }
+      }
+
+      ctx.globalAlpha = theme.texture === 'ocean' ? 0.24 : 0.16;
+      const spotCount = theme.texture === 'storm' ? 34 : 26;
+      for (let i = 0; i < spotCount; i++) {
+        const x = 28 + seededUnit(seed, i + 120) * 200;
+        const y = 30 + seededUnit(seed, i + 180) * 196;
+        const radius = 4 + seededUnit(seed, i + 240) * (theme.texture === 'ocean' ? 28 : 18);
+        ctx.beginPath();
+        ctx.ellipse(x, y, radius * (1.2 + seededUnit(seed, i + 260)), radius * (0.45 + seededUnit(seed, i + 280) * 0.8), seededUnit(seed, i + 320) * Math.PI, 0, Math.PI * 2);
+        ctx.fillStyle = theme.texture === 'ocean'
+          ? (seededUnit(seed, i + 300) > 0.48 ? '#f8ffff' : '#1f9f68')
+          : (seededUnit(seed, i + 300) > 0.5 ? '#ffffff' : accentColor);
+        ctx.fill();
+      }
+
+      if (theme.texture === 'storm') {
+        ctx.globalAlpha = 0.22;
+        ctx.beginPath();
+        ctx.ellipse(172, 118, 46, 16, -0.24, 0, Math.PI * 2);
+        ctx.strokeStyle = '#f2f7ff';
+        ctx.lineWidth = 7;
+        ctx.stroke();
+      }
+
+      ctx.globalAlpha = 1;
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    function createLabelSprite(node, colors, radius) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 144;
+      const ctx = canvas.getContext('2d');
+      const glyph = fileTypeGlyph(node.type);
+      const title = shortFilename(node.filename, 24);
+
+      ctx.fillStyle = 'rgba(3, 8, 24, 0.72)';
+      roundRect(ctx, 18, 24, 476, 88, 28);
+      ctx.fill();
+      ctx.strokeStyle = `${colors[1]}aa`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = colors[1];
+      roundRect(ctx, 36, 43, 78, 50, 18);
+      ctx.fill();
+      ctx.fillStyle = '#06101f';
+      ctx.font = '700 24px "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(glyph, 75, 68);
+
+      ctx.fillStyle = '#f5fbff';
+      ctx.font = '700 26px "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(title, 132, 63);
+      ctx.fillStyle = 'rgba(216, 238, 255, 0.72)';
+      ctx.font = '18px "Microsoft YaHei", sans-serif';
+      ctx.fillText(`${fileTypeLabel(node.type)} · ${Number(node.size || 0).toLocaleString()} B`, 132, 91);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.88,
+        depthWrite: false
+      });
+      const sprite = new THREE.Sprite(material);
+      sprite.position.set(0, radius * 2.7, 0);
+      sprite.scale.set(58, 16, 1);
+      return sprite;
+    }
+
+    function roundRect(ctx, x, y, width, height, radius) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + width, y, x + width, y + height, radius);
+      ctx.arcTo(x + width, y + height, x, y + height, radius);
+      ctx.arcTo(x, y + height, x, y, radius);
+      ctx.arcTo(x, y, x + width, y, radius);
+      ctx.closePath();
     }
 
     function visibleNodes() {
@@ -952,6 +1403,17 @@
         name: l.relation_label
       }));
       graph3D.graphData({ nodes, links });
+    }
+
+    function focusGlobalGraphView(duration = 650) {
+      if (!graph3D) return;
+      window.requestAnimationFrame(() => {
+        try {
+          graph3D.zoomToFit(duration, 170);
+        } catch (error) {
+          graph3D.cameraPosition({ x: 0, y: 0, z: 720 }, { x: 0, y: 0, z: 0 }, duration);
+        }
+      });
     }
 
     function fillSelectOptions() {
@@ -1148,7 +1610,7 @@
     function updateCounts() {
       els.nodeCount.textContent = String(state.nodes.length);
       els.linkCount.textContent = String(state.links.length);
-      els.stageBadge.textContent = `${state.nodes.length} 个文件神经元 / ${state.links.length} 条突触 / ${state.logs.length} 条日志`;
+      els.stageBadge.textContent = `${state.nodes.length} 个文件神经元 / ${state.links.length} 条突触 / ${state.logs.length} 条日志 / ${state.presence.length} 艘飞船`;
     }
 
     function showTooltip(nodeId, screenX, screenY) {
@@ -1157,9 +1619,7 @@
         els.tooltip.classList.remove('show');
         return;
       }
-      const degree = state.links.reduce((count, link) => {
-        return count + ((link.file_id === nodeId || link.related_file_id === nodeId) ? 1 : 0);
-      }, 0);
+      const degree = nodeDegree(nodeId);
       const editing = state.locks[nodeId];
       const editingMeta = editing
         ? `<div class="tooltip-meta"><strong>编辑状态：</strong>${escapeHtml(editing.name || editing.username || '-')} 正在编辑此文件</div>`
@@ -1180,8 +1640,10 @@
         <div class="tooltip-meta"><strong>关联数量：</strong>${degree}</div>
       `;
       const bounds = els.canvas.getBoundingClientRect();
-      const left = Math.min(bounds.width - 330, Math.max(14, screenX + 20));
-      const top = Math.min(bounds.height - 190, Math.max(14, screenY + 20));
+      const localX = screenX - bounds.left;
+      const localY = screenY - bounds.top;
+      const left = Math.min(bounds.width - 330, Math.max(14, localX + 20));
+      const top = Math.min(bounds.height - 190, Math.max(14, localY + 20));
       els.tooltip.style.left = `${left}px`;
       els.tooltip.style.top = `${top}px`;
       els.tooltip.classList.add('show');
@@ -1198,11 +1660,20 @@
       state.links = data.links || [];
       state.logs = data.logs || [];
       state.locks = data.locks || {};
-      state.nodeMap = new Map(state.nodes.map(node => [node.id, node]));
+      state.nodeMap = new Map();
+      state.nodes.forEach(node => {
+        state.nodeMap.set(node.id, node);
+        state.nodeMap.set(String(node.id), node);
+      });
+      if (state.linkSourceId && !state.nodeMap.has(state.linkSourceId)) {
+        state.linkSourceId = null;
+      }
       fillSelectOptions();
+      if (state.linkSourceId) els.sourceSelect.value = state.linkSourceId;
       renderLinkList();
       renderLogs();
       updateCounts();
+      refreshEditGuide();
       if (!graph3D) init3DGraph();
       else update3DGraph();
     }
@@ -1216,6 +1687,20 @@
           relation_label: relationLabel || ''
         })
       });
+    }
+
+    async function syncGraphPresence() {
+      try {
+        const data = await api('/graph-presence', {
+          method: 'POST',
+          body: JSON.stringify({ mode: state.canvasMode })
+        });
+        state.presence = data.users || [];
+        updateCounts();
+        renderSpaceships();
+      } catch (error) {
+        // Presence is decorative; keep the graph usable if the heartbeat fails.
+      }
     }
 
     async function handleCreateLink() {
@@ -1259,17 +1744,77 @@
       }
     }
 
+    function refreshEditGuide(message = '') {
+      const source = state.linkSourceId ? state.nodeMap.get(state.linkSourceId) : null;
+      const candidate = state.candidateTargetId ? state.nodeMap.get(state.candidateTargetId) : null;
+      els.stagePanel.classList.toggle('edit-mode', state.canvasMode === 'edit');
+      els.canvas.classList.toggle('linking', state.canvasMode === 'edit');
+      els.clearSourceBtn.disabled = !source;
+      els.stepSource.classList.toggle('active', state.canvasMode === 'edit' && !source);
+      els.stepSource.classList.toggle('done', Boolean(source));
+      els.stepTarget.classList.toggle('active', state.canvasMode === 'edit' && Boolean(source) && !candidate);
+      els.stepTarget.classList.toggle('done', Boolean(source && candidate));
+      els.stepConnect.classList.toggle('active', state.canvasMode === 'edit' && Boolean(source && candidate));
+      els.stepConnect.classList.toggle('done', false);
+      if (state.canvasMode !== 'edit') {
+        els.sourceStatus.textContent = '切换到编辑模式后，可以直接在星图中点击两个星球建立连接。';
+        hideTargetHint();
+        return;
+      }
+      if (message) {
+        els.formError.textContent = message;
+      }
+      if (source) {
+        if (candidate && !idsEqual(candidate.id, source.id)) {
+          els.sourceStatus.innerHTML = `起点：<span class="guide-source">${escapeHtml(source.filename)}</span>，目标：<span class="guide-source">${escapeHtml(candidate.filename)}</span>。点击目标星球即可建立连接。`;
+        } else {
+          els.sourceStatus.innerHTML = `起点：<span class="guide-source">${escapeHtml(source.filename)}</span>。把鼠标移到目标星球，会出现预览光束；点击即可连接。`;
+        }
+      } else {
+        els.sourceStatus.textContent = '第 1 步：点击一个星球设为起点。拖动画布仍可旋转星系，Esc 可取消当前操作。';
+      }
+    }
+
+    function setLinkSource(nodeId, message = '') {
+      state.linkSourceId = nodeId;
+      state.candidateTargetId = null;
+      els.sourceSelect.value = nodeId;
+      refreshEditGuide(message || '已选择连接起点，请点击目标星球建立连接。');
+      hideTargetHint();
+      if (graph3D) update3DGraph();
+    }
+
+    function clearLinkSource(message = '') {
+      state.linkSourceId = null;
+      state.candidateTargetId = null;
+      els.sourceSelect.value = '';
+      refreshEditGuide(message || '已清除连接起点。');
+      hideTargetHint();
+      hideEditPreview();
+      if (graph3D) update3DGraph();
+    }
+
     function setCanvasMode(mode) {
       state.canvasMode = mode;
       state.contextNodeId = null;
       hideGraphMenu();
-      if (mode !== 'edit') state.linkSourceId = null;
+      state.candidateTargetId = null;
+      if (mode !== 'edit') {
+        state.linkSourceId = null;
+        hideTargetHint();
+        hideEditPreview();
+      }
       els.browseModeBtn.classList.toggle('active', mode === 'browse');
       els.editModeBtn.classList.toggle('active', mode === 'edit');
       els.formError.textContent = mode === 'edit'
-        ? '编辑模式：右键节点选择起点，再右键目标节点建立连接。'
+        ? '编辑模式：点击一个星球作为起点，再点击目标星球建立连接。'
         : '';
-      if(graph3D) update3DGraph();
+      refreshEditGuide();
+      syncGraphPresence();
+      if (graph3D) {
+        update3DGraph();
+        if (mode === 'edit') focusGlobalGraphView();
+      }
     }
 
     function hideGraphMenu() {
@@ -1277,32 +1822,111 @@
       state.contextNodeId = null;
     }
 
+    function hideTargetHint() {
+      els.targetHint.classList.remove('show');
+      els.targetHint.innerHTML = '';
+    }
+
+    function showTargetHint(nodeId, screenX, screenY) {
+      if (state.canvasMode !== 'edit' || !state.linkSourceId) {
+        hideTargetHint();
+        return;
+      }
+      const node = state.nodeMap.get(nodeId);
+      if (!node) {
+        hideTargetHint();
+        return;
+      }
+      const isSelf = idsEqual(state.linkSourceId, nodeId);
+      const exists = !isSelf && linkExists(state.linkSourceId, nodeId);
+      const kicker = isSelf ? 'Same Orbit' : exists ? 'Already Linked' : 'Ready To Link';
+      const sub = isSelf
+        ? '这个星球已经是起点，请换一个目标。'
+        : exists
+          ? '这两个文件已经有关联，点击不会重复创建。'
+          : '点击这个星球，立即建立文件关联。';
+      els.targetHint.innerHTML = `
+        <div class="target-hint-kicker">${kicker}</div>
+        <div class="target-hint-title">${escapeHtml(node.filename)}</div>
+        <div class="target-hint-sub">${escapeHtml(sub)}</div>
+      `;
+      const bounds = els.canvas.getBoundingClientRect();
+      const localX = screenX - bounds.left;
+      const localY = screenY - bounds.top;
+      els.targetHint.style.left = `${Math.min(bounds.width - 300, Math.max(12, localX))}px`;
+      els.targetHint.style.top = `${Math.min(bounds.height - 126, Math.max(58, localY))}px`;
+      els.targetHint.classList.add('show');
+    }
+
+    function renderPlanetThemeMenu(nodeId) {
+      const node = state.nodeMap.get(nodeId);
+      if (!node) {
+        els.planetThemeGrid.innerHTML = '';
+        return;
+      }
+      const currentTheme = getNodeTheme(node).id;
+      els.planetThemeGrid.innerHTML = PLANET_THEMES.map(theme => `
+        <button
+          class="planet-theme-option ${theme.id === currentTheme ? 'active' : ''}"
+          type="button"
+          data-planet-theme="${theme.id}"
+          style="--theme-dot:${theme.dot}"
+          title="设置为${escapeHtml(theme.label)}主题"
+        >
+          <span class="theme-dot"></span>
+          <span>${escapeHtml(theme.label)}</span>
+        </button>
+      `).join('');
+    }
+
+    async function updatePlanetTheme(fileId, theme) {
+      await api(`/files/${fileId}/planet-theme`, {
+        method: 'POST',
+        body: JSON.stringify({ theme })
+      });
+      const node = state.nodeMap.get(fileId);
+      if (node) node.planet_theme = theme;
+      els.formError.textContent = theme === 'auto'
+        ? '已恢复为自动星球主题。'
+        : `已切换为${PLANET_THEME_MAP.get(theme)?.label || '星球'}主题。`;
+      hideGraphMenu();
+      if (graph3D) graph3D.refresh();
+    }
+
     function showGraphMenu(nodeId, x, y) {
       state.contextNodeId = nodeId;
+      renderPlanetThemeMenu(nodeId);
       const bounds = els.canvas.getBoundingClientRect();
       const menu = els.graphContextMenu;
-      menu.style.left = `${Math.min(bounds.width - 190, Math.max(12, x))}px`;
-      menu.style.top = `${Math.min(bounds.height - 120, Math.max(12, y))}px`;
+      const localX = x - bounds.left;
+      const localY = y - bounds.top;
+      menu.style.left = `${Math.min(bounds.width - 270, Math.max(12, localX))}px`;
+      menu.style.top = `${Math.min(bounds.height - 430, Math.max(12, localY))}px`;
       menu.classList.add('show');
     }
 
     async function connectFromCanvas(targetId) {
       if (!state.linkSourceId) {
-        state.linkSourceId = targetId;
-        els.sourceSelect.value = targetId;
-        els.formError.textContent = '已选择连接起点，请右键目标文件并选择“连接到此文件”。';
-        requestDraw();
+        setLinkSource(targetId);
         return;
       }
-      if (state.linkSourceId === targetId) {
-        els.formError.textContent = '不能把同一个文件和自己连接。';
+      if (idsEqual(state.linkSourceId, targetId)) {
+        refreshEditGuide('这个星球已经是起点，请点击另一个星球作为目标。');
+        return;
+      }
+      if (linkExists(state.linkSourceId, targetId)) {
+        refreshEditGuide('这两个文件已经有关联了，不需要重复连接。');
         return;
       }
       try {
         await createLink(state.linkSourceId, targetId, els.labelInput.value.trim());
         els.targetSelect.value = targetId;
-        els.formError.textContent = '';
+        els.formError.textContent = '连接已建立，光束已写入关联记录。';
         state.linkSourceId = null;
+        state.candidateTargetId = null;
+        hideTargetHint();
+        hideEditPreview();
+        refreshEditGuide();
         await loadGraph();
       } catch (error) {
         els.formError.textContent = error.message || '建立连接失败';
@@ -1344,6 +1968,15 @@
     els.reloadBtn.addEventListener('click', loadGraph);
     els.browseModeBtn.addEventListener('click', () => setCanvasMode('browse'));
     els.editModeBtn.addEventListener('click', () => setCanvasMode('edit'));
+    els.clearSourceBtn.addEventListener('click', () => clearLinkSource());
+    els.sourceSelect.addEventListener('change', () => {
+      if (state.canvasMode !== 'edit') return;
+      if (els.sourceSelect.value) {
+        setLinkSource(els.sourceSelect.value, '已从左侧表单同步连接起点。');
+      } else {
+        clearLinkSource();
+      }
+    });
     els.backBtn.addEventListener('click', () => {
       document.body.classList.add('page-leaving');
       window.setTimeout(() => {
@@ -1393,15 +2026,27 @@
     });
 
     els.graphContextMenu.addEventListener('click', async (event) => {
+      const themeButton = event.target.closest('[data-planet-theme]');
+      if (themeButton) {
+        const nodeId = state.contextNodeId;
+        const theme = themeButton.getAttribute('data-planet-theme') || 'auto';
+        if (!nodeId) return;
+        themeButton.disabled = true;
+        try {
+          await updatePlanetTheme(nodeId, theme);
+        } catch (error) {
+          els.formError.textContent = error.message || '星球主题保存失败';
+          themeButton.disabled = false;
+        }
+        return;
+      }
+
       const action = event.target.closest('[data-graph-action]')?.getAttribute('data-graph-action');
       const nodeId = state.contextNodeId;
       if (!action || !nodeId) return;
       if (action === 'set-source') {
-        state.linkSourceId = nodeId;
-        els.sourceSelect.value = nodeId;
-        els.formError.textContent = '已选择连接起点，请右键目标文件并选择“连接到此文件”。';
+        setLinkSource(nodeId, '已选择连接起点，请点击或右键目标文件建立连接。');
         hideGraphMenu();
-        if(graph3D) update3DGraph();
         return;
       }
       if (action === 'connect-target') {
@@ -1410,22 +2055,389 @@
         return;
       }
       if (action === 'clear-source') {
-        state.linkSourceId = null;
-        els.sourceSelect.value = '';
-        els.formError.textContent = '已清除连接起点。';
+        clearLinkSource();
         hideGraphMenu();
-        if(graph3D) update3DGraph();
       }
     });
 
-        document.addEventListener('mousemove', (e) => {
+    document.addEventListener('mousemove', (e) => {
       state.lastMouseX = e.clientX;
       state.lastMouseY = e.clientY;
+      if (state.canvasMode === 'edit' && state.linkSourceId && state.hoveredNodeId) {
+        showTargetHint(state.hoveredNodeId, e.clientX, e.clientY);
+      }
     });
 
     document.addEventListener('click', (event) => {
       if (!els.graphContextMenu.contains(event.target)) hideGraphMenu();
     });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && state.canvasMode === 'edit' && state.linkSourceId) {
+        clearLinkSource('已取消当前连接起点。');
+      }
+    });
+
+    function presenceColor(username, mode) {
+      if (mode === 'edit') return ['#ffd28a', '#ff7a45'];
+      const palette = [
+        ['#8affea', '#24c8ff'],
+        ['#a7d7ff', '#5f8dff'],
+        ['#bdf58a', '#49d978'],
+        ['#ffc4ee', '#ff73c8']
+      ];
+      return palette[Math.abs(hashString(username)) % palette.length];
+    }
+
+    function createPilotLabelSprite(user, colors) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 360;
+      canvas.height = 110;
+      const ctx = canvas.getContext('2d');
+      const name = shortFilename(user.name || user.username, 16);
+      const modeText = user.mode === 'edit' ? '正在编辑图谱' : '正在浏览图谱';
+
+      ctx.fillStyle = 'rgba(2, 9, 26, 0.70)';
+      roundRect(ctx, 18, 18, 324, 70, 22);
+      ctx.fill();
+      ctx.strokeStyle = `${colors[0]}bb`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = colors[0];
+      ctx.beginPath();
+      ctx.arc(54, 53, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#06101f';
+      ctx.font = '800 17px "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(name.slice(0, 1).toUpperCase(), 54, 54);
+
+      ctx.fillStyle = '#f6fbff';
+      ctx.font = '700 21px "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(name, 84, 48);
+      ctx.fillStyle = 'rgba(216, 238, 255, 0.72)';
+      ctx.font = '15px "Microsoft YaHei", sans-serif';
+      ctx.fillText(modeText, 84, 70);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false
+      }));
+      sprite.position.set(0, 22, 0);
+      sprite.scale.set(42, 13, 1);
+      return sprite;
+    }
+
+    function createSpaceship(user, index, total) {
+      const seed = Math.abs(hashString(user.username || user.name || index));
+      const colors = presenceColor(user.username || user.name || index, user.mode);
+      const ship = new THREE.Group();
+      const bodyMat = new THREE.MeshPhongMaterial({
+        color: '#d7ecff',
+        emissive: colors[1],
+        emissiveIntensity: user.mode === 'edit' ? 0.26 : 0.16,
+        specular: '#ffffff',
+        shininess: 150
+      });
+      const accentMat = new THREE.MeshPhongMaterial({
+        color: colors[0],
+        emissive: colors[1],
+        emissiveIntensity: user.mode === 'edit' ? 0.48 : 0.3,
+        specular: '#ffffff',
+        shininess: 130
+      });
+      const darkMat = new THREE.MeshPhongMaterial({
+        color: '#12213a',
+        emissive: '#071226',
+        emissiveIntensity: 0.3,
+        shininess: 80
+      });
+      const glassMat = new THREE.MeshPhongMaterial({
+        color: '#e9fbff',
+        emissive: '#89ecff',
+        emissiveIntensity: 0.42,
+        transparent: true,
+        opacity: 0.78,
+        shininess: 160
+      });
+      const flameMat = new THREE.MeshBasicMaterial({
+        color: user.mode === 'edit' ? '#ff9b45' : '#55d7ff',
+        transparent: true,
+        opacity: 0.72,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const trailMat = new THREE.MeshBasicMaterial({
+        color: user.mode === 'edit' ? '#ffcf84' : colors[0],
+        transparent: true,
+        opacity: 0.18,
+        blending: THREE.AdditiveBlending
+      });
+
+      const fuselage = new THREE.Mesh(new THREE.SphereGeometry(4, 32, 16), bodyMat);
+      fuselage.scale.set(2.75, 0.48, 0.62);
+      fuselage.rotation.z = -0.03;
+      ship.add(fuselage);
+
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(2.45, 5.8, 32), bodyMat);
+      nose.rotation.z = -Math.PI / 2;
+      nose.scale.set(1, 0.78, 0.64);
+      nose.position.x = 12.2;
+      ship.add(nose);
+
+      const spine = new THREE.Mesh(new THREE.BoxGeometry(13.8, 0.62, 0.42), accentMat);
+      spine.position.set(0.2, 2.05, 0);
+      spine.rotation.z = -0.03;
+      ship.add(spine);
+
+      const belly = new THREE.Mesh(new THREE.BoxGeometry(9.5, 0.5, 0.62), darkMat);
+      belly.position.set(-2.2, -1.95, 0);
+      ship.add(belly);
+
+      const cockpit = new THREE.Mesh(new THREE.SphereGeometry(2.15, 28, 14), glassMat);
+      cockpit.scale.set(1.25, 0.46, 0.72);
+      cockpit.position.set(4.2, 2.15, 0);
+      cockpit.rotation.z = -0.12;
+      ship.add(cockpit);
+
+      const canopyRim = new THREE.Mesh(new THREE.TorusGeometry(1.62, 0.08, 8, 36), accentMat);
+      canopyRim.scale.set(1.2, 0.45, 0.7);
+      canopyRim.rotation.x = Math.PI / 2;
+      canopyRim.position.set(4.3, 2.22, 0);
+      ship.add(canopyRim);
+
+      const wingShape = new THREE.Shape();
+      wingShape.moveTo(-7.2, 0);
+      wingShape.lineTo(1.8, 0);
+      wingShape.lineTo(-3.3, 7.3);
+      wingShape.lineTo(-9.2, 5.4);
+      wingShape.lineTo(-7.2, 0);
+      const wingGeo = new THREE.ShapeGeometry(wingShape);
+      const wingLeft = new THREE.Mesh(wingGeo, accentMat);
+      wingLeft.rotation.x = Math.PI / 2;
+      wingLeft.position.set(-1.8, -0.58, 1.05);
+      ship.add(wingLeft);
+      const wingRight = new THREE.Mesh(wingGeo, accentMat);
+      wingRight.rotation.x = -Math.PI / 2;
+      wingRight.position.set(-1.8, -0.58, -1.05);
+      ship.add(wingRight);
+
+      const fin = new THREE.Mesh(new THREE.ConeGeometry(1.2, 4.5, 4), accentMat);
+      fin.scale.set(0.8, 0.55, 1.15);
+      fin.rotation.set(0, 0, Math.PI / 2);
+      fin.position.set(-7.5, 2.6, 0);
+      ship.add(fin);
+
+      const engineGeo = new THREE.CylinderGeometry(0.82, 1.08, 2.8, 18);
+      const engineLeft = new THREE.Mesh(engineGeo, darkMat);
+      engineLeft.rotation.z = Math.PI / 2;
+      engineLeft.position.set(-9.7, -0.48, 1.35);
+      ship.add(engineLeft);
+      const engineRight = engineLeft.clone();
+      engineRight.position.z = -1.35;
+      ship.add(engineRight);
+
+      const flame = new THREE.Group();
+      [-1.35, 1.35].forEach((z, flameIndex) => {
+        const plume = new THREE.Mesh(new THREE.ConeGeometry(0.92, user.mode === 'edit' ? 9.5 : 7.2, 24), flameMat);
+        plume.rotation.z = Math.PI / 2;
+        plume.position.set(-13.9, -0.48, z);
+        plume.scale.set(1, 0.75, 0.75);
+        flame.add(plume);
+        const core = new THREE.Mesh(new THREE.ConeGeometry(0.46, user.mode === 'edit' ? 6.2 : 4.8, 18), new THREE.MeshBasicMaterial({
+          color: '#ffffff',
+          transparent: true,
+          opacity: 0.46,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        }));
+        core.rotation.z = Math.PI / 2;
+        core.position.set(-12.8, -0.48, z);
+        flame.add(core);
+        flame.userData[`plume${flameIndex}`] = plume;
+      });
+      ship.add(flame);
+
+      const trail = new THREE.Mesh(new THREE.ConeGeometry(4.4, 42, 32, 1, true), trailMat);
+      trail.rotation.z = Math.PI / 2;
+      trail.position.set(-25, -0.45, 0);
+      trail.scale.set(1, 0.36, 0.36);
+      ship.add(trail);
+
+      for (let i = 0; i < 4; i++) {
+        const porthole = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), glassMat);
+        porthole.scale.set(1, 0.32, 0.32);
+        porthole.position.set(2.2 - i * 2.2, 1.1, 2.12);
+        ship.add(porthole);
+        const mirror = porthole.clone();
+        mirror.position.z = -2.12;
+        ship.add(mirror);
+      }
+
+      const label = createPilotLabelSprite(user, colors);
+      label.position.y = 25;
+      ship.add(label);
+
+      const lane = index % 4;
+      const radius = 175 + lane * 52 + seededUnit(seed, 1) * 34 + Math.max(0, total - 1) * 6;
+      ship.userData = {
+        radius,
+        phase: seededUnit(seed, 2) * Math.PI * 2,
+        speed: 0.00018 + seededUnit(seed, 3) * 0.00008,
+        y: (lane - 1.5) * 42 + (seededUnit(seed, 4) - 0.5) * 26,
+        tilt: (seededUnit(seed, 5) - 0.5) * 0.56,
+        flame,
+        trail
+      };
+      ship.scale.setScalar(0.92);
+      return ship;
+    }
+
+    function disposeThreeObject(obj) {
+      obj.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          const materials = Array.isArray(child.material) ? child.material : [child.material];
+          materials.forEach(material => {
+            if (material.map) material.map.dispose();
+            material.dispose();
+          });
+        }
+      });
+    }
+
+    function ensureSpaceshipGroup() {
+      if (!graph3D || !window.THREE) return null;
+      if (!spaceshipGroup) {
+        spaceshipGroup = new THREE.Group();
+        spaceshipGroup.name = 'graph-presence-spaceships';
+        graph3D.scene().add(spaceshipGroup);
+      }
+      return spaceshipGroup;
+    }
+
+    function ensureEditPreviewGroup() {
+      if (!graph3D || !window.THREE) return null;
+      if (!editPreviewGroup) {
+        editPreviewGroup = new THREE.Group();
+        editPreviewGroup.name = 'graph-edit-preview';
+
+        const lineGeo = new THREE.BufferGeometry();
+        lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+        const lineMat = new THREE.LineBasicMaterial({
+          color: '#8affea',
+          transparent: true,
+          opacity: 0.85,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        editPreviewLine = new THREE.Line(lineGeo, lineMat);
+        editPreviewGroup.add(editPreviewLine);
+
+        const sourceMat = new THREE.MeshBasicMaterial({
+          color: '#ffd28a',
+          transparent: true,
+          opacity: 0.9,
+          blending: THREE.AdditiveBlending
+        });
+        const targetMat = new THREE.MeshBasicMaterial({
+          color: '#8affea',
+          transparent: true,
+          opacity: 0.9,
+          blending: THREE.AdditiveBlending
+        });
+        editPreviewSource = new THREE.Mesh(new THREE.SphereGeometry(7, 18, 12), sourceMat);
+        editPreviewTarget = new THREE.Mesh(new THREE.SphereGeometry(6, 18, 12), targetMat);
+        editPreviewGroup.add(editPreviewSource);
+        editPreviewGroup.add(editPreviewTarget);
+        editPreviewGroup.visible = false;
+        graph3D.scene().add(editPreviewGroup);
+      }
+      return editPreviewGroup;
+    }
+
+    function hideEditPreview() {
+      if (editPreviewGroup) editPreviewGroup.visible = false;
+    }
+
+    function updateEditPreview(time = performance.now()) {
+      const group = ensureEditPreviewGroup();
+      if (!group || !state.linkSourceId || !state.candidateTargetId || idsEqual(state.linkSourceId, state.candidateTargetId)) {
+        hideEditPreview();
+        return;
+      }
+      const source = state.nodeMap.get(state.linkSourceId);
+      const target = state.nodeMap.get(state.candidateTargetId);
+      if (!source || !target || [source.x, source.y, source.z, target.x, target.y, target.z].some(value => typeof value !== 'number')) {
+        hideEditPreview();
+        return;
+      }
+      const positions = editPreviewLine.geometry.attributes.position.array;
+      positions[0] = source.x;
+      positions[1] = source.y;
+      positions[2] = source.z;
+      positions[3] = target.x;
+      positions[4] = target.y;
+      positions[5] = target.z;
+      editPreviewLine.geometry.attributes.position.needsUpdate = true;
+      editPreviewSource.position.set(source.x, source.y, source.z);
+      editPreviewTarget.position.set(target.x, target.y, target.z);
+      const pulse = 1 + Math.sin(time * 0.008) * 0.18;
+      editPreviewSource.scale.setScalar(pulse);
+      editPreviewTarget.scale.setScalar(1.08 + Math.cos(time * 0.01) * 0.18);
+      editPreviewLine.material.opacity = linkExists(state.linkSourceId, state.candidateTargetId) ? 0.32 : 0.88;
+      editPreviewTarget.material.color.set(linkExists(state.linkSourceId, state.candidateTargetId) ? '#ffd28a' : '#8affea');
+      group.visible = true;
+    }
+
+    function renderSpaceships() {
+      const group = ensureSpaceshipGroup();
+      if (!group) return;
+      [...group.children].forEach(child => {
+        group.remove(child);
+        disposeThreeObject(child);
+      });
+      state.presence.forEach((user, index) => {
+        group.add(createSpaceship(user, index, state.presence.length));
+      });
+      if (!spaceshipAnimationId) animateSpaceships();
+    }
+
+    function animateSpaceships(time = performance.now()) {
+      spaceshipAnimationId = requestAnimationFrame(animateSpaceships);
+      if (!spaceshipGroup) return;
+      spaceshipGroup.children.forEach((ship, index) => {
+        const orbit = ship.userData;
+        const angle = orbit.phase + time * orbit.speed;
+        const wobble = Math.sin(time * 0.0014 + index) * 10;
+        ship.position.set(
+          Math.cos(angle) * orbit.radius,
+          orbit.y + wobble,
+          Math.sin(angle) * orbit.radius
+        );
+        ship.rotation.set(0, -angle + Math.PI / 2, orbit.tilt + Math.sin(time * 0.001 + index) * 0.08);
+        if (orbit.flame) {
+          orbit.flame.children.forEach((plume, plumeIndex) => {
+            plume.scale.x = 0.82 + Math.sin(time * 0.013 + index + plumeIndex) * 0.16;
+            plume.scale.y = 0.72 + Math.cos(time * 0.011 + plumeIndex) * 0.08;
+            plume.material.opacity = plumeIndex % 2 === 0
+              ? 0.62 + Math.sin(time * 0.01 + index) * 0.1
+              : 0.38 + Math.cos(time * 0.012 + plumeIndex) * 0.08;
+          });
+        }
+        if (orbit.trail) {
+          orbit.trail.scale.y = 0.32 + Math.sin(time * 0.002 + index) * 0.04;
+          orbit.trail.scale.z = 0.32 + Math.cos(time * 0.002 + index) * 0.04;
+        }
+      });
+      updateEditPreview(time);
+    }
 
     function init3DGraph() {
       graph3D = ForceGraph3D()(els.canvas)
@@ -1434,67 +2446,66 @@
         .nodeThreeObject(node => {
           if (!window.THREE) return false;
           
-          let degree = 0;
-          if (graph3D && graph3D.graphData().links) {
-            degree = graph3D.graphData().links.filter(l => 
-              l.source === node.id || l.target === node.id || 
-              l.source?.id === node.id || l.target?.id === node.id || 
-              l.file_id === node.id || l.related_file_id === node.id
-            ).length;
-          } else {
-            degree = state.links.filter(l => l.file_id === node.id || l.related_file_id === node.id).length;
-          }
-
+          const degree = nodeDegree(node.id);
+          const seed = Math.abs(hashString(`${node.id}:${node.filename}`));
           const baseR = Math.max(4, nodeRadius(node, false) / 3.5);
           const r = baseR + (degree * 0.8); 
-          const colors = fileColor(node.type);
+          const theme = getNodeTheme(node);
+          const colors = nodeVisualColors(node);
           const mainColor = colors[0];
           const accentColor = colors[1];
+          const shineColor = colors[2] || '#ffffff';
           
           const group = new THREE.Group();
           
           const isStar = degree >= 3 || baseR >= 8;
+          const isSelectedSource = state.linkSourceId && idsEqual(state.linkSourceId, node.id);
+          const isCandidateTarget = state.candidateTargetId && idsEqual(state.candidateTargetId, node.id) && !isSelectedSource;
 
-          // 1. Core Planet/Star
+          // 1. Core planet with deterministic document texture
           const coreGeo = new THREE.SphereGeometry(r, 32, 32);
           const coreMat = new THREE.MeshPhongMaterial({
             color: mainColor,
-            emissive: isStar ? mainColor : '#000000',
-            emissiveIntensity: isStar ? 0.6 : 0.1,
-            shininess: 100,
+            map: createPlanetTexture(node, colors, seed, theme),
+            emissive: isStar || isSelectedSource || isCandidateTarget ? mainColor : accentColor,
+            emissiveIntensity: isSelectedSource ? 0.9 : isCandidateTarget ? 0.62 : (theme.emissive || (isStar ? 0.46 : 0.12)),
+            specular: shineColor,
+            shininess: 92,
             transparent: true,
             opacity: 0.95,
           });
           const core = new THREE.Mesh(coreGeo, coreMat);
+          core.rotation.y = seededUnit(seed, 1) * Math.PI;
+          core.rotation.z = (seededUnit(seed, 2) - 0.5) * 0.42;
           group.add(core);
 
-          // 2. Sci-Fi Wireframe Shield
-          const shieldGeo = new THREE.IcosahedronGeometry(r * 1.1, 2);
+          // 2. Thin cartography grid, like an observatory projection
+          const shieldGeo = new THREE.IcosahedronGeometry(r * 1.12, 2);
           const shieldMat = new THREE.MeshBasicMaterial({
-            color: accentColor,
+            color: isSelectedSource ? '#92fff0' : isCandidateTarget ? '#ffd28a' : accentColor,
             wireframe: true,
             transparent: true,
-            opacity: 0.25,
+            opacity: isSelectedSource ? 0.46 : isCandidateTarget ? 0.36 : 0.18,
             blending: THREE.AdditiveBlending
           });
           const shield = new THREE.Mesh(shieldGeo, shieldMat);
           group.add(shield);
 
-          // 3. Tech Data Rings
+          // 3. Orbital rings: more relations produce a richer orbit system
           if (degree > 0 || isStar) {
-            const ringCount = isStar ? 2 : 1;
+            const ringCount = Math.min(3, 1 + Math.floor(degree / 2) + (isStar ? 1 : 0));
             for(let i=0; i<ringCount; i++) {
               const ringR = r * (1.6 + i * 0.5);
-              const ringGeo = new THREE.TorusGeometry(ringR, 0.15, 2, 64);
+              const ringGeo = new THREE.TorusGeometry(ringR, isSelectedSource ? 0.22 : 0.12, 8, 96);
               const ringMat = new THREE.MeshBasicMaterial({
-                color: isStar ? '#ffcc00' : accentColor,
+                color: isSelectedSource ? '#8affea' : isCandidateTarget ? '#ffd28a' : (isStar ? '#ffd47a' : accentColor),
                 transparent: true,
-                opacity: 0.4 - (i * 0.15),
+                opacity: (isSelectedSource || isCandidateTarget ? 0.72 : 0.38) - (i * 0.1),
                 blending: THREE.AdditiveBlending
               });
               const ring = new THREE.Mesh(ringGeo, ringMat);
-              ring.rotation.x = Math.PI / 2 + (Math.random() * 0.3 - 0.15);
-              ring.rotation.y = (Math.random() * 0.3 - 0.15);
+              ring.rotation.x = Math.PI / 2 + (seededUnit(seed, i + 10) * 0.42 - 0.21);
+              ring.rotation.y = seededUnit(seed, i + 20) * 0.7 - 0.35;
               group.add(ring);
               
               const orbitGeo = new THREE.RingGeometry(ringR - 0.4, ringR - 0.3, 64);
@@ -1502,7 +2513,7 @@
                 color: '#ffffff',
                 side: THREE.DoubleSide,
                 transparent: true,
-                opacity: 0.15,
+                opacity: isSelectedSource ? 0.24 : 0.11,
                 blending: THREE.AdditiveBlending
               });
               const orbit = new THREE.Mesh(orbitGeo, orbitMat);
@@ -1511,34 +2522,67 @@
             }
           }
 
-          // 4. Glowing Atmosphere
-          const glowGeo = new THREE.SphereGeometry(r * 1.3, 32, 32);
+          // 4. Glowing atmosphere
+          const glowGeo = new THREE.SphereGeometry(r * (isSelectedSource ? 1.62 : isCandidateTarget ? 1.52 : 1.34), 32, 32);
           const glowMat = new THREE.MeshBasicMaterial({
-            color: mainColor,
+            color: isSelectedSource ? '#7dfff0' : isCandidateTarget ? '#ffd28a' : mainColor,
             transparent: true,
-            opacity: isStar ? 0.25 : 0.12,
+            opacity: isSelectedSource ? 0.36 : isCandidateTarget ? 0.3 : (isStar ? 0.23 : 0.12),
             blending: THREE.AdditiveBlending,
             side: THREE.BackSide
           });
           const glow = new THREE.Mesh(glowGeo, glowMat);
           group.add(glow);
 
-          // 5. Orbiting Satellites
-          const particleCount = isStar ? 15 : 6;
+          if (theme.id === 'sun') {
+            const coronaGeo = new THREE.SphereGeometry(r * 1.9, 32, 32);
+            const coronaMat = new THREE.MeshBasicMaterial({
+              color: '#ffb02e',
+              transparent: true,
+              opacity: 0.24,
+              blending: THREE.AdditiveBlending,
+              side: THREE.BackSide
+            });
+            group.add(new THREE.Mesh(coronaGeo, coronaMat));
+          }
+
+          if (theme.rings) {
+            const ringPalette = theme.id === 'saturn'
+              ? ['#fff1b8', '#d1a75f', '#7a5f38']
+              : ['#cfffff', '#7be7ef', '#4aa7bd'];
+            for (let i = 0; i < theme.rings; i++) {
+              const planetRingGeo = new THREE.RingGeometry(r * (1.85 + i * 0.38), r * (2.15 + i * 0.42), 128);
+              const planetRingMat = new THREE.MeshBasicMaterial({
+                color: ringPalette[i % ringPalette.length],
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: theme.id === 'saturn' ? 0.46 - i * 0.12 : 0.28,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+              });
+              const planetRing = new THREE.Mesh(planetRingGeo, planetRingMat);
+              planetRing.rotation.x = Math.PI / 2 + 0.34;
+              planetRing.rotation.y = -0.18;
+              group.add(planetRing);
+            }
+          }
+
+          // 5. Orbiting satellites and document fragments
+          const particleCount = isStar ? 16 : 7;
           const particlesGeo = new THREE.BufferGeometry();
           const posArray = new Float32Array(particleCount * 3);
           for(let i=0; i<particleCount; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const radius = r * (1.8 + Math.random() * 1.5);
-            const height = (Math.random() - 0.5) * r * 1.5;
+            const angle = seededUnit(seed, i + 60) * Math.PI * 2;
+            const radius = r * (1.8 + seededUnit(seed, i + 80) * 1.5);
+            const height = (seededUnit(seed, i + 100) - 0.5) * r * 1.5;
             posArray[i*3] = Math.cos(angle) * radius;
             posArray[i*3+1] = height;
             posArray[i*3+2] = Math.sin(angle) * radius;
           }
           particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
           const particlesMat = new THREE.PointsMaterial({
-            color: '#ffffff',
-            size: 1.5,
+            color: shineColor,
+            size: isSelectedSource ? 2.2 : 1.5,
             transparent: true,
             opacity: 0.8,
             blending: THREE.AdditiveBlending
@@ -1546,65 +2590,95 @@
           const particles = new THREE.Points(particlesGeo, particlesMat);
           group.add(particles);
 
-          // 6. Selection Highlight Ring (Hidden by default)
-          const highlightGeo = new THREE.TorusGeometry(r * 2.2, 0.6, 16, 64);
+          // 6. Selection beacon
+          const highlightGeo = new THREE.TorusGeometry(r * 2.22, 0.55, 16, 96);
           const highlightMat = new THREE.MeshBasicMaterial({
-            color: '#00ffcc',
+            color: '#8affea',
             transparent: true,
-            opacity: 0.9,
+            opacity: 0.82,
             blending: THREE.AdditiveBlending
           });
           const highlightRing = new THREE.Mesh(highlightGeo, highlightMat);
-          highlightRing.visible = (state.linkSourceId === node.id);
+          highlightRing.visible = isSelectedSource || isCandidateTarget;
           highlightRing.rotation.x = Math.PI / 2;
           group.add(highlightRing);
           
           node.__highlightRing = highlightRing;
+
+          const label = createLabelSprite(node, colors, r);
+          label.visible = isSelectedSource || isCandidateTarget || degree > 0 || node.id === state.hoveredNodeId;
+          group.add(label);
 
           return group;
         })
         // --- 万有引力与大气拉扯视觉效果 ---
         .linkMaterial(link => {
           if (!window.THREE) return null;
+          const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+          const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+          const isActiveOrbit = state.linkSourceId && (idsEqual(sourceId, state.linkSourceId) || idsEqual(targetId, state.linkSourceId));
           return new THREE.MeshBasicMaterial({
-            color: '#55bbff',
+            color: isActiveOrbit ? '#8affea' : '#60c7ff',
             transparent: true,
-            opacity: 0.15, // 轻柔的大气拖尾
+            opacity: isActiveOrbit ? 0.36 : 0.16,
             blending: THREE.AdditiveBlending,
             depthWrite: false
           });
         })
-        .linkWidth(8) // 加粗，模拟大气层的延伸融合
-        .linkCurvature(0.12) // 微小的弧线，增加引力拉扯的有机感
-        .linkDirectionalParticles(link => 2 + Math.floor(Math.random() * 2))
-        .linkDirectionalParticleWidth(5) // 内部流动的引力能量球
+        .linkWidth(link => {
+          const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+          const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+          return state.linkSourceId && (idsEqual(sourceId, state.linkSourceId) || idsEqual(targetId, state.linkSourceId)) ? 11 : 7;
+        })
+        .linkCurvature(0.15)
+        .linkDirectionalParticles(link => {
+          const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+          const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+          return state.linkSourceId && (idsEqual(sourceId, state.linkSourceId) || idsEqual(targetId, state.linkSourceId)) ? 5 : 2;
+        })
+        .linkDirectionalParticleWidth(4.5)
         .linkDirectionalParticleResolution(16)
         .linkDirectionalParticleSpeed(0.004)
         .linkDirectionalParticleColor(() => 'rgba(200, 240, 255, 0.9)')
         .onNodeHover((node) => {
-          els.canvas.style.cursor = node ? 'pointer' : null;
+          els.canvas.style.cursor = node ? (state.canvasMode === 'edit' ? 'crosshair' : 'pointer') : null;
           if (node) {
             state.hoveredNodeId = node.id;
             showTooltip(node.id, state.lastMouseX, state.lastMouseY);
+            if (state.canvasMode === 'edit' && state.linkSourceId) {
+              const previousCandidateId = state.candidateTargetId;
+              state.candidateTargetId = node.id;
+              showTargetHint(node.id, state.lastMouseX, state.lastMouseY);
+              refreshEditGuide();
+              if (!idsEqual(previousCandidateId || '', state.candidateTargetId)) update3DGraph();
+            }
           } else {
+            const hadCandidate = Boolean(state.candidateTargetId);
             state.hoveredNodeId = null;
+            state.candidateTargetId = null;
             hideTooltip();
+            hideTargetHint();
+            refreshEditGuide();
+            if (hadCandidate) update3DGraph();
           }
         })
-        .onNodeClick(node => {
-          if (state.canvasMode === 'edit' && state.linkSourceId && state.linkSourceId !== node.id) {
+        .onNodeClick((node, event) => {
+          if (event && event.button !== 0) return;
+          if (state.canvasMode === 'edit') {
             connectFromCanvas(node.id);
-          } else {
-            const distance = 200;
-            const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
-            graph3D.cameraPosition(
-              { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio }, 
-              node, 
-              1000 
-            );
+            return;
           }
+          const distance = 200;
+          const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
+          graph3D.cameraPosition(
+            { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio }, 
+            node, 
+            1000 
+          );
         })
         .onNodeRightClick((node, event) => {
+          event?.preventDefault?.();
+          event?.stopPropagation?.();
           if (state.canvasMode !== 'edit') {
             els.formError.textContent = '请先切换到编辑模式，再右键节点创建连接。';
             return;
@@ -1623,6 +2697,17 @@
       
       if (window.THREE) {
         const scene = graph3D.scene();
+
+        const ambient = new THREE.AmbientLight(0x8fb9ff, 0.58);
+        scene.add(ambient);
+        const keyLight = new THREE.DirectionalLight(0xffffff, 1.25);
+        keyLight.position.set(-280, 240, 360);
+        scene.add(keyLight);
+        const rimLight = new THREE.PointLight(0x6be7ff, 1.6, 900);
+        rimLight.position.set(260, -160, 220);
+        scene.add(rimLight);
+        ensureSpaceshipGroup();
+        renderSpaceships();
         
         // 1. Generate soft circle texture for stars and nebulae
         const createSoftCircle = () => {
@@ -1738,41 +2823,17 @@
       resizeObserver.observe(els.canvas);
     }
 
-    loadGraph().catch(error => {
+    loadGraph().then(() => {
+      syncGraphPresence();
+    }).catch(error => {
       els.formError.textContent = error.message || '图谱加载失败';
     });
     setInterval(() => {
       loadGraph().catch(() => {});
     }, 15000);
-  </script>
-</body>
-</html>
-ment
-        graph3D.backgroundColor('#020206');
-      }
-
-      resizeObserver = new ResizeObserver(() => {
-        const rect = els.canvas.getBoundingClientRect();
-        graph3D.width(rect.width).height(rect.height);
-      });
-      resizeObserver.observe(els.canvas);
-    }
-
-    loadGraph().catch(error => {
-      els.formError.textContent = error.message || '图谱加载失败';
-    });
     setInterval(() => {
-      loadGraph().catch(() => {});
-    }, 15000);
-  </script>
-</body>
-</html>
-ph().catch(error => {
-      els.formError.textContent = error.message || '图谱加载失败';
-    });
-    setInterval(() => {
-      loadGraph().catch(() => {});
-    }, 15000);
+      syncGraphPresence();
+    }, 10000);
   </script>
 </body>
 </html>

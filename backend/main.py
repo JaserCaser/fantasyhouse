@@ -200,6 +200,12 @@ def init_db():
             created_at TEXT NOT NULL,
             created_by TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS graph_presence (
+            username TEXT PRIMARY KEY,
+            name TEXT NOT NULL DEFAULT '',
+            mode TEXT NOT NULL DEFAULT 'browse',
+            last_seen TEXT NOT NULL
+        );
     """)
     conn.commit()
     conn.close()
@@ -270,6 +276,9 @@ def fts_extract_content(file_id: str, file_ext: str) -> str:
             text = re.sub(r'<script[^>]*>.*?</script>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r'<[^>]+>', ' ', text)
             return re.sub(r'\s+', ' ', text).strip()[:100_000]
+        if ext == '.doc':
+            # Legacy .doc preview uses local Word COM; avoid invoking it again here for FTS stability.
+            return ""
         if ext == '.docx':
             doc = Document(str(file_path))
             return '\n'.join(p.text for p in doc.paragraphs if p.text.strip())[:100_000]
@@ -328,7 +337,7 @@ def build_fts_query(raw: str) -> str | None:
         return None
     parts = []
     for token in tokens:
-        if re.search(r'[涓€-榭縘', token):
+        if re.search(r'[一-鿿]', token):
             # For CJK: split into chars and use FTS5 phrase syntax for adjacency
             chars = ' '.join(list(token))
             parts.append(f'"{chars}"')
@@ -458,9 +467,9 @@ def is_strong_password(pw: str) -> bool:
 # ============ Auth ============
 
 def get_user(authorization: Optional[str] = Header(None)):
-    """楠岃瘉 token锛岃繑鍥炵敤鎴蜂俊鎭垨鎶?401"""
+    """验证 token，返回用户信息或抛 401"""
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(401, "鏈櫥褰?")
+        raise HTTPException(401, "未登录")
     token = authorization[7:]
     conn = get_db()
     c = conn.cursor()
@@ -468,29 +477,29 @@ def get_user(authorization: Optional[str] = Header(None)):
     row = c.fetchone()
     conn.close()
     if not row:
-        raise HTTPException(401, "鐧诲綍宸茶繃鏈?")
+        raise HTTPException(401, "登录已过期")
     if datetime.fromisoformat(row["expires"]) < datetime.now():
         conn = get_db()
         conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
         conn.commit()
         conn.close()
-        raise HTTPException(401, "鐧诲綍宸茶繃鏈?")
+        raise HTTPException(401, "登录已过期")
     if row["status"] != "active":
-        raise HTTPException(403, "璐﹀彿寰呭鎵癸紝璇疯仈绯荤鐞嗗憳")
+        raise HTTPException(403, "账号待审批，请联系管理员")
     return {
         "username": row["username"], "name": row["name"], "role": row["role"],
         "status": row["status"], "bio": row["bio"] or "", "avatar_data": row["avatar_data"] or "",
     }
 
 def get_admin_user(authorization: Optional[str] = Header(None)):
-    """楠岃瘉 token 涓斾负 admin 瑙掕壊"""
+    """验证 token 且为 admin 角色"""
     user = get_user(authorization)
     if user.get("role") != "admin":
-        raise HTTPException(403, "闇€瑕佺鐞嗗憳鏉冮檺")
+        raise HTTPException(403, "需要管理员权限")
     return user
 
 def require_auth(func):
-    """瑁呴グ鍣細缁欒矾鐢卞嚱鏁板姞閴存潈"""
+    """装饰器：给路由函数加鉴权"""
     from functools import wraps
     @wraps(func)
     async def wrapper(authorization: Optional[str] = Header(None), **kwargs):
@@ -613,25 +622,25 @@ def check_quota(username: str, workspace_id: str, additional_size: int, conn):
         return
 
     if not workspace_id:
-        raise HTTPException(403, "涓婁紶鏂囦欢蹇呴』鎸囧畾鎵€灞炵殑宸ヤ綔绌洪棿锛屾湭鍔犲叆宸ヤ綔绌洪棿鍓嶆病鏈夊瓨鍌ㄩ搴?")
+        raise HTTPException(403, "上传文件必须指定所属的工作空间，未加入工作空间前没有存储额度")
 
     # Check workspace quota
     ws = conn.execute("SELECT quota_limit, quota_used FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
     if not ws:
-        raise HTTPException(404, "宸ヤ綔绌洪棿涓嶅瓨鍦?")
+        raise HTTPException(404, "工作空间不存在")
     
     if ws["quota_used"] + additional_size > ws["quota_limit"]:
         limit_gb = ws["quota_limit"] / (1024**3)
-        raise HTTPException(400, f"宸ヤ綔绌洪棿瀛樺偍棰濆害涓嶈冻 (鏈€澶? {limit_gb:.1f}GB)")
+        raise HTTPException(400, f"工作空间存储额度不足 (最大: {limit_gb:.1f}GB)")
 
     # Check user quota in workspace
     member = conn.execute("SELECT quota_limit, quota_used FROM workspace_members WHERE workspace_id = ? AND username = ?", (workspace_id, username)).fetchone()
     if not member:
-        raise HTTPException(403, "鎮ㄤ笉鏄宸ヤ綔绌洪棿鐨勬垚鍛?")
+        raise HTTPException(403, "您不是该工作空间的成员")
     
     if member["quota_used"] + additional_size > member["quota_limit"]:
         limit_mb = member["quota_limit"] / (1024**2)
-        raise HTTPException(400, f"鎮ㄧ殑涓汉瀛樺偍棰濆害涓嶈冻 (鏈€澶? {limit_mb:.1f}MB)")
+        raise HTTPException(400, f"您的个人存储额度不足 (最大: {limit_mb:.1f}MB)")
 
 def update_quota(username: str, workspace_id: str, size_change: int, conn):
     """Update quota_used for user and workspace."""
@@ -683,10 +692,25 @@ def migrate_file_transfers():
     conn.commit()
     conn.close()
 
+def migrate_graph_presence():
+    """Ensure graph_presence table exists for knowledge graph visitors."""
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS graph_presence (
+            username TEXT PRIMARY KEY,
+            name TEXT NOT NULL DEFAULT '',
+            mode TEXT NOT NULL DEFAULT 'browse',
+            last_seen TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
 migrate_permissions()
 migrate_versions()
 migrate_workspaces()
 migrate_file_transfers()
+migrate_graph_presence()
 recalculate_quotas()
 build_fts_index()
 init_default_admin()
@@ -737,9 +761,9 @@ def check_perm(user: dict, perm: str, *, is_owner: bool = False):
         return
     perms = get_permissions(user["username"])
     if not perms.get(perm, False):
-        raise HTTPException(403, "鏃犳潈闄愭墽琛屾鎿嶄綔")
+        raise HTTPException(403, "无权限执行此操作")
     if not is_owner and perm in ("can_delete_any", "can_edit_others"):
-        raise HTTPException(403, "鏃犳潈闄愭搷浣滀粬浜烘枃浠?")
+        raise HTTPException(403, "无权限操作他人文件")
 
 def log_admin_action(actor: str, action: str, target: str, details: str = ""):
     conn = get_db()
@@ -860,9 +884,13 @@ class FileLinkCreateRequest(BaseModel):
     related_file_id: str
     relation_label: str = ""
 
+class FilePlanetThemeUpdate(BaseModel):
+    theme: str = "auto"
+
 class QaAskRequest(BaseModel):
     question: str
-    messages: Optional[list] = []  # 鍘嗗彶瀵硅瘽 [{"role": "user"|"assistant", "content": str}]
+    messages: Optional[list] = []  # 历史对话 [{"role": "user"|"assistant", "content": str}]
+    selected_file_id: Optional[str] = None  # 限定在指定文件内检索
 
 class SettingsUpdate(BaseModel):
     llm_api_key: Optional[str] = ""
@@ -870,6 +898,7 @@ class SettingsUpdate(BaseModel):
     llm_base_url: Optional[str] = ""
     llm_configs: Optional[str] = "[]"
     active_llm_index: Optional[int] = 0
+    feature_report_enabled: Optional[bool] = None
 
 class LlmTestRequest(BaseModel):
     llm_api_key: str
@@ -879,7 +908,7 @@ class LlmTestRequest(BaseModel):
 @app.post("/api/register")
 async def register(req: RegisterRequest, authorization: Optional[str] = Header(None)):
     if not is_strong_password(req.password):
-        raise HTTPException(400, "瀵嗙爜寮哄害涓嶈冻锛氬繀椤诲寘鍚瓧姣嶅拰鏁板瓧锛屼笖涓嶅皯浜?8 浣?")
+        raise HTTPException(400, "密码强度不足：必须包含字母和数字，且不少于 8 位")
     conn = get_db()
     c = conn.cursor()
     c.execute("SELECT COUNT(*) as cnt FROM users")
@@ -888,9 +917,9 @@ async def register(req: RegisterRequest, authorization: Optional[str] = Header(N
     c.execute("SELECT COUNT(*) as cnt FROM users WHERE username = ?", (req.username,))
     if c.fetchone()["cnt"] > 0:
         conn.close()
-        raise HTTPException(400, "鐢ㄦ埛鍚嶅凡瀛樺湪")
+        raise HTTPException(400, "用户名已存在")
 
-    # 妫€鏌ユ槸鍚︽槸绠＄悊鍛樹唬鍒?
+    # 检查是否是管理员代创
     is_admin_create = False
     if not is_first and authorization and authorization.startswith("Bearer "):
         tkn = authorization[7:]
@@ -937,10 +966,10 @@ async def login(req: LoginRequest):
     u = c.fetchone()
     if not u:
         conn.close()
-        raise HTTPException(401, "鐢ㄦ埛鍚嶆垨瀵嗙爜閿欒")
+        raise HTTPException(401, "用户名或密码错误")
     if u["status"] != "active":
         conn.close()
-        raise HTTPException(403, "璐﹀彿寰呭鎵癸紝璇疯仈绯荤鐞嗗憳")
+        raise HTTPException(403, "账号待审批，请联系管理员")
     token = uuid.uuid4().hex
     c.execute("INSERT INTO sessions (token, username, expires) VALUES (?, ?, ?)",
               (token, u["username"], (datetime.now() + timedelta(hours=24)).isoformat()))
@@ -984,7 +1013,7 @@ async def update_profile(req: ProfileUpdateRequest, authorization: Optional[str]
 @app.post("/api/change-password")
 async def change_password(req: ChangePasswordRequest, authorization: Optional[str] = Header(None)):
     if not is_strong_password(req.new_password):
-        raise HTTPException(400, "鏂板瘑鐮佸己搴︿笉瓒筹細蹇呴』鍖呭惈瀛楁瘝鍜屾暟瀛楋紝涓斾笉灏戜簬 8 浣?")
+        raise HTTPException(400, "新密码强度不足：必须包含字母和数字，且不少于 8 位")
     user = get_user(authorization)
     conn = get_db()
     c = conn.cursor()
@@ -992,7 +1021,7 @@ async def change_password(req: ChangePasswordRequest, authorization: Optional[st
     row = c.fetchone()
     if not row or row[0] != hash_pw(req.old_password):
         conn.close()
-        raise HTTPException(400, "鏃у瘑鐮佷笉姝ｇ‘")
+        raise HTTPException(400, "旧密码不正确")
     conn.execute("UPDATE users SET password_hash = ? WHERE username = ?",
                  (hash_pw(req.new_password), user["username"]))
     conn.commit()
@@ -1056,7 +1085,7 @@ async def update_announcement(announcement_id: str, req: AnnouncementUpdate, cur
     c.execute("SELECT id FROM announcements WHERE id = ?", (announcement_id,))
     if not c.fetchone():
         conn.close()
-        raise HTTPException(404, "鍏憡涓嶅瓨鍦?")
+        raise HTTPException(404, "公告不存在")
     updates = []
     params = []
     if req.title is not None:
@@ -1091,7 +1120,7 @@ async def mark_announcement_read(announcement_id: str, current_user: dict = Depe
     c.execute("SELECT id FROM announcements WHERE id = ?", (announcement_id,))
     if not c.fetchone():
         conn.close()
-        raise HTTPException(404, "鍏憡涓嶅瓨鍦?")
+        raise HTTPException(404, "公告不存在")
     now = datetime.now().isoformat()
     conn.execute(
         "INSERT OR REPLACE INTO announcement_reads (announcement_id, username, read_at) VALUES (?, ?, ?)",
@@ -1146,7 +1175,7 @@ async def create_workspace(req: WorkspaceCreate, current_user: dict = Depends(ge
     conn = get_db()
     if conn.execute("SELECT 1 FROM workspaces WHERE name = ?", (req.name,)).fetchone():
         conn.close()
-        raise HTTPException(400, "宸ヤ綔绌洪棿鍚嶇О宸插瓨鍦?")
+        raise HTTPException(400, "工作空间名称已存在")
     wid = uuid.uuid4().hex[:12]
     now = datetime.now().isoformat()
     conn.execute(
@@ -1156,7 +1185,7 @@ async def create_workspace(req: WorkspaceCreate, current_user: dict = Depends(ge
     conn.execute(
         "INSERT OR IGNORE INTO workspace_members (workspace_id, username, role, joined_at, quota_limit) VALUES (?, ?, 'admin', ?, ?)",
         (wid, current_user["username"], now, WORKSPACE_QUOTA_DEFAULT) # Workspace admin gets full quota by default? 
-        # Actually the prompt says: 宸ヤ綔绌洪棿鐨勭鐞嗗憳鏄嫢鏈?00G鐨勬敮閰嶆潈鍒嗛厤缁欎笅灞炵殑鏅€氭垚鍛?
+        # Actually the prompt says: 工作空间的管理员是拥有100G的支配权分配给下属的普通成员
         # So maybe admins should have WORKSPACE_QUOTA_DEFAULT as their limit too?
     )
     conn.commit()
@@ -1168,7 +1197,7 @@ async def update_workspace(workspace_id: str, req: WorkspaceUpdate, current_user
     conn = get_db()
     if not conn.execute("SELECT 1 FROM workspaces WHERE id = ?", (workspace_id,)).fetchone():
         conn.close()
-        raise HTTPException(404, "宸ヤ綔绌洪棿涓嶅瓨鍦?")
+        raise HTTPException(404, "工作空间不存在")
     updates, params = [], []
     if req.name is not None:
         updates.append("name = ?"); params.append(req.name)
@@ -1186,13 +1215,13 @@ async def delete_workspace(workspace_id: str, current_user: dict = Depends(get_a
     conn = get_db()
     if not conn.execute("SELECT 1 FROM workspaces WHERE id = ?", (workspace_id,)).fetchone():
         conn.close()
-        raise HTTPException(404, "宸ヤ綔绌洪棿涓嶅瓨鍦?")
+        raise HTTPException(404, "工作空间不存在")
     file_count = conn.execute(
         "SELECT COUNT(*) as cnt FROM files WHERE workspace_id = ?", (workspace_id,)
     ).fetchone()["cnt"]
     if file_count > 0:
         conn.close()
-        raise HTTPException(400, f"宸ヤ綔绌洪棿鍐呰繕鏈?{file_count} 涓枃浠讹紝璇峰厛绉婚櫎鎴栬浆绉绘枃浠?")
+        raise HTTPException(400, f"工作空间内还有 {file_count} 个文件，请先移除或转移文件")
     conn.execute("DELETE FROM workspace_members WHERE workspace_id = ?", (workspace_id,))
     conn.execute("DELETE FROM workspaces WHERE id = ?", (workspace_id,))
     conn.commit()
@@ -1208,7 +1237,7 @@ async def list_workspace_members(workspace_id: str, current_user: dict = Depends
             (workspace_id, current_user["username"])
         ).fetchone():
             conn.close()
-            raise HTTPException(403, "鏃犳潈闄愭煡鐪嬫宸ヤ綔绌洪棿")
+            raise HTTPException(403, "无权限查看此工作空间")
     rows = conn.execute(
         """SELECT wm.username, wm.role, wm.joined_at, u.name
            FROM workspace_members wm JOIN users u ON wm.username = u.username
@@ -1229,16 +1258,16 @@ async def add_workspace_member(workspace_id: str, req: WorkspaceMemberUpdate, cu
         ).fetchone()
         if not ws_role or ws_role["role"] != "admin":
             conn.close()
-            raise HTTPException(403, "闇€瑕佸伐浣滅┖闂寸鐞嗗憳鏉冮檺")
+            raise HTTPException(403, "需要工作空间管理员权限")
     if not conn.execute("SELECT 1 FROM workspaces WHERE id = ?", (workspace_id,)).fetchone():
         conn.close()
-        raise HTTPException(404, "宸ヤ綔绌洪棿涓嶅瓨鍦?")
+        raise HTTPException(404, "工作空间不存在")
     if not conn.execute("SELECT 1 FROM users WHERE username = ? AND status = 'active'", (req.username,)).fetchone():
         conn.close()
-        raise HTTPException(404, "鐢ㄦ埛涓嶅瓨鍦ㄦ垨鏈縺娲?")
+        raise HTTPException(404, "用户不存在或未激活")
     if req.role not in ("admin", "member"):
         conn.close()
-        raise HTTPException(400, "瑙掕壊鏃犳晥")
+        raise HTTPException(400, "角色无效")
     now = datetime.now().isoformat()
     conn.execute(
         "INSERT OR REPLACE INTO workspace_members (workspace_id, username, role, joined_at) VALUES (?, ?, ?, ?)",
@@ -1258,7 +1287,7 @@ async def remove_workspace_member(workspace_id: str, username: str, current_user
         ).fetchone()
         if not ws_role or ws_role["role"] != "admin":
             conn.close()
-            raise HTTPException(403, "闇€瑕佸伐浣滅┖闂寸鐞嗗憳鏉冮檺")
+            raise HTTPException(403, "需要工作空间管理员权限")
     conn.execute(
         "DELETE FROM workspace_members WHERE workspace_id = ? AND username = ?", (workspace_id, username)
     )
@@ -1270,7 +1299,7 @@ async def remove_workspace_member(workspace_id: str, username: str, current_user
 async def update_workspace_member_role(workspace_id: str, username: str, req: dict, current_user: dict = Depends(get_admin_user)):
     role = req.get("role")
     if role not in ("admin", "member"):
-        raise HTTPException(400, "瑙掕壊鏃犳晥")
+        raise HTTPException(400, "角色无效")
     conn = get_db()
     conn.execute(
         "UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND username = ?",
@@ -1285,17 +1314,17 @@ async def update_workspace_member_role(workspace_id: str, username: str, req: di
 @app.post("/api/workspaces/{workspace_id}/request-join")
 async def request_join_workspace(workspace_id: str, current_user: dict = Depends(get_user)):
     if current_user["role"] == "admin":
-        raise HTTPException(400, "绠＄悊鍛樻棤闇€鐢宠")
+        raise HTTPException(400, "管理员无需申请")
     conn = get_db()
     if not conn.execute("SELECT 1 FROM workspaces WHERE id = ?", (workspace_id,)).fetchone():
         conn.close()
-        raise HTTPException(404, "宸ヤ綔绌洪棿涓嶅瓨鍦?")
+        raise HTTPException(404, "工作空间不存在")
     if conn.execute(
         "SELECT 1 FROM workspace_members WHERE workspace_id = ? AND username = ?",
         (workspace_id, current_user["username"])
     ).fetchone():
         conn.close()
-        raise HTTPException(400, "鎮ㄥ凡鏄宸ヤ綔绌洪棿鎴愬憳")
+        raise HTTPException(400, "您已是该工作空间成员")
     rid = uuid.uuid4().hex[:16]
     now = datetime.now().isoformat()
     try:
@@ -1379,7 +1408,7 @@ async def approve_ws_request(request_id: str, current_user: dict = Depends(get_u
     ).fetchone()
     if not req or req["status"] != "pending":
         conn.close()
-        raise HTTPException(404, "鐢宠涓嶅瓨鍦ㄦ垨宸插鐞?")
+        raise HTTPException(404, "申请不存在或已处理")
     # Check permission
     if current_user["role"] != "admin":
         is_ws_admin = conn.execute(
@@ -1388,7 +1417,7 @@ async def approve_ws_request(request_id: str, current_user: dict = Depends(get_u
         ).fetchone()
         if not is_ws_admin:
             conn.close()
-            raise HTTPException(403, "娌℃湁鏉冮檺")
+            raise HTTPException(403, "没有权限")
     now = datetime.now().isoformat()
     conn.execute(
         "UPDATE workspace_join_requests SET status='approved', reviewed_by=?, reviewed_at=? WHERE id=?",
@@ -1416,7 +1445,7 @@ async def reject_ws_request(request_id: str, current_user: dict = Depends(get_us
     ).fetchone()
     if not req or req["status"] != "pending":
         conn.close()
-        raise HTTPException(404, "鐢宠涓嶅瓨鍦ㄦ垨宸插鐞?")
+        raise HTTPException(404, "申请不存在或已处理")
     if current_user["role"] != "admin":
         is_ws_admin = conn.execute(
             "SELECT 1 FROM workspace_members WHERE workspace_id = ? AND username = ? AND role = 'admin'",
@@ -1424,7 +1453,7 @@ async def reject_ws_request(request_id: str, current_user: dict = Depends(get_us
         ).fetchone()
         if not is_ws_admin:
             conn.close()
-            raise HTTPException(403, "娌℃湁鏉冮檺")
+            raise HTTPException(403, "没有权限")
     now = datetime.now().isoformat()
     conn.execute(
         "UPDATE workspace_join_requests SET status='rejected', reviewed_by=?, reviewed_at=? WHERE id=?",
@@ -1454,16 +1483,16 @@ async def api_transfer_file(file_id: str, req: FileTransferRequest, current_user
     file_row = conn.execute("SELECT id, filename FROM files WHERE id = ?", (file_id,)).fetchone()
     if not file_row:
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     if req.recipient == current_user["username"]:
         conn.close()
-        raise HTTPException(400, "涓嶈兘鍙戦€佺粰鑷繁")
+        raise HTTPException(400, "不能发送给自己")
     recipient_row = conn.execute(
         "SELECT username FROM users WHERE username = ? AND status = 'active'", (req.recipient,)
     ).fetchone()
     if not recipient_row:
         conn.close()
-        raise HTTPException(404, "鐢ㄦ埛涓嶅瓨鍦ㄦ垨鏈縺娲?")
+        raise HTTPException(404, "用户不存在或未激活")
     transfer_id = uuid.uuid4().hex[:16]
     now = datetime.now().isoformat()
     conn.execute(
@@ -1484,11 +1513,11 @@ async def api_accept_file_transfer(transfer_id: str, req: FileTransferAcceptRequ
     ).fetchone()
     if not transfer:
         conn.close()
-        raise HTTPException(404, "浼犻€掔敵璇蜂笉瀛樺湪鎴栧凡澶勭悊")
+        raise HTTPException(404, "传递申请不存在或已处理")
     orig = conn.execute("SELECT * FROM files WHERE id = ?", (transfer["file_id"],)).fetchone()
     if not orig:
         conn.close()
-        raise HTTPException(404, "鍘熷鏂囦欢宸蹭笉瀛樺湪")
+        raise HTTPException(404, "原始文件已不存在")
 
     now = datetime.now().isoformat()
     target_ws_ids = req.workspace_ids if req.workspace_ids else [""]
@@ -1534,7 +1563,7 @@ async def api_reject_file_transfer(transfer_id: str, current_user: dict = Depend
     ).fetchone()
     if not transfer:
         conn.close()
-        raise HTTPException(404, "浼犻€掔敵璇蜂笉瀛樺湪鎴栧凡澶勭悊")
+        raise HTTPException(404, "传递申请不存在或已处理")
     now = datetime.now().isoformat()
     conn.execute(
         "UPDATE file_transfers SET status='rejected', resolved_at=? WHERE id=?",
@@ -1552,7 +1581,7 @@ async def get_file_permissions_api(file_id: str, current_user: dict = Depends(ge
     f = conn.execute("SELECT uploaded_by, workspace_id FROM files WHERE id = ?", (file_id,)).fetchone()
     if not f:
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     if current_user["role"] != "admin" and f["uploaded_by"] != current_user["username"]:
         ws_role = conn.execute(
             "SELECT role FROM workspace_members WHERE workspace_id = ? AND username = ?",
@@ -1560,7 +1589,7 @@ async def get_file_permissions_api(file_id: str, current_user: dict = Depends(ge
         ).fetchone()
         if not ws_role or ws_role["role"] != "admin":
             conn.close()
-            raise HTTPException(403, "鏃犳潈闄?")
+            raise HTTPException(403, "无权限")
     perms = get_file_perms(file_id, conn)
     conn.close()
     return perms
@@ -1571,7 +1600,7 @@ async def update_file_permissions_api(file_id: str, req: FilePermissionsUpdate, 
     f = conn.execute("SELECT uploaded_by, workspace_id FROM files WHERE id = ?", (file_id,)).fetchone()
     if not f:
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     if current_user["role"] != "admin" and f["uploaded_by"] != current_user["username"]:
         ws_role = conn.execute(
             "SELECT role FROM workspace_members WHERE workspace_id = ? AND username = ?",
@@ -1579,10 +1608,10 @@ async def update_file_permissions_api(file_id: str, req: FilePermissionsUpdate, 
         ).fetchone()
         if not ws_role or ws_role["role"] != "admin":
             conn.close()
-            raise HTTPException(403, "鏃犳潈闄愪慨鏀规枃浠舵潈闄?")
+            raise HTTPException(403, "无权限修改文件权限")
     if req.visibility not in ("private", "workspace", "public"):
         conn.close()
-        raise HTTPException(400, "visibility 鏃犳晥")
+        raise HTTPException(400, "visibility 无效")
     _write_file_perms(file_id, req.visibility, req.allow_view, req.allow_edit, req.allow_delete, conn)
     conn.commit()
     conn.close()
@@ -1611,11 +1640,11 @@ async def list_users(q: Optional[str] = None, workspace_id: Optional[str] = None
         admin_ws_ids = [r["workspace_id"] for r in c.fetchall()]
         if not admin_ws_ids:
             conn.close()
-            raise HTTPException(403, "娌℃湁鏉冮檺")
+            raise HTTPException(403, "没有权限")
         # If specific workspace requested, verify caller is admin of it
         if workspace_id and workspace_id not in admin_ws_ids:
             conn.close()
-            raise HTTPException(403, "娌℃湁鏉冮檺璁块棶璇ュ伐浣滅┖闂?")
+            raise HTTPException(403, "没有权限访问该工作空间")
         # If no filter, restrict to union of their admin workspaces
         if not workspace_id:
             workspace_id = "__ws_admin_filter__"
@@ -1683,18 +1712,18 @@ async def create_user(req: dict, authorization: Optional[str] = Header(None)):
     skip_weak_check = req.get("skip_weak_check", False)
 
     if not username or not password:
-        raise HTTPException(400, "鐢ㄦ埛鍚嶅拰瀵嗙爜涓嶈兘涓虹┖")
+        raise HTTPException(400, "用户名和密码不能为空")
 
     # Admin privilege: warning but allowed to skip
     if not is_strong_password(password) and not skip_weak_check:
-        return JSONResponse(status_code=400, content={"detail": "WEAK_PASSWORD_WARNING", "message": "璇ュ瘑鐮佸己搴﹁緝寮憋紙寤鸿鍖呭惈瀛楁瘝鍜屾暟瀛椾笖涓嶅皯浜?浣嶏級銆傛槸鍚﹀潥鎸佷娇鐢ㄦ瀵嗙爜锛?"})
+        return JSONResponse(status_code=400, content={"detail": "WEAK_PASSWORD_WARNING", "message": "该密码强度较弱（建议包含字母和数字且不少于8位）。是否坚持使用此密码？"})
 
     conn = get_db()
     c = conn.cursor()
     c.execute("SELECT COUNT(*) as cnt FROM users WHERE username = ?", (username,))
     if c.fetchone()["cnt"] > 0:
         conn.close()
-        raise HTTPException(400, "鐢ㄦ埛鍚嶅凡瀛樺湪")
+        raise HTTPException(400, "用户名已存在")
     
     c.execute("INSERT INTO users (username, password_hash, name, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
               (username, hash_pw(password), name or username, role, "active", datetime.now().isoformat()))
@@ -1707,7 +1736,7 @@ async def create_user(req: dict, authorization: Optional[str] = Header(None)):
 async def delete_user(username: str, authorization: Optional[str] = Header(None)):
     actor = get_admin_user(authorization)
     if actor["username"] == username:
-        raise HTTPException(400, "涓嶈兘鍒犻櫎鑷繁")
+        raise HTTPException(400, "不能删除自己")
     conn = get_db()
     conn.execute("DELETE FROM users WHERE username = ?", (username,))
     conn.commit()
@@ -1719,7 +1748,7 @@ async def delete_user(username: str, authorization: Optional[str] = Header(None)
 async def update_user_role(username: str, role_data: dict, authorization: Optional[str] = Header(None)):
     actor = get_admin_user(authorization)
     if role_data.get("role") not in ("admin", "member"):
-        raise HTTPException(400, "瑙掕壊鏃犳晥")
+        raise HTTPException(400, "角色无效")
     conn = get_db()
     conn.execute("UPDATE users SET role = ? WHERE username = ?", (role_data["role"], username))
     conn.commit()
@@ -1742,10 +1771,10 @@ async def update_user_permissions(username: str, req: PermissionUpdateRequest, a
     row = c.fetchone()
     if not row:
         conn.close()
-        raise HTTPException(404, "鐢ㄦ埛涓嶅瓨鍦?")
+        raise HTTPException(404, "用户不存在")
     if row["role"] == "admin":
         conn.close()
-        raise HTTPException(400, "绠＄悊鍛樻潈闄愪笉鍙慨鏀?")
+        raise HTTPException(400, "管理员权限不可修改")
     perms = {
         "can_upload": req.can_upload,
         "can_delete_own": req.can_delete_own,
@@ -1779,10 +1808,10 @@ async def approve_user(username: str, authorization: Optional[str] = Header(None
     row = c.fetchone()
     if not row:
         conn.close()
-        raise HTTPException(404, "鐢ㄦ埛涓嶅瓨鍦?")
+        raise HTTPException(404, "用户不存在")
     if row["status"] == "active":
         conn.close()
-        raise HTTPException(400, "鐢ㄦ埛宸叉縺娲?")
+        raise HTTPException(400, "用户已激活")
     conn.execute("UPDATE users SET status = 'active' WHERE username = ?", (username,))
     conn.commit()
     conn.close()
@@ -1793,7 +1822,7 @@ async def approve_user(username: str, authorization: Optional[str] = Header(None
 async def reject_user(username: str, authorization: Optional[str] = Header(None)):
     actor = get_admin_user(authorization)
     if actor["username"] == username:
-        raise HTTPException(400, "涓嶈兘鎷掔粷鑷繁")
+        raise HTTPException(400, "不能拒绝自己")
     conn = get_db()
     conn.execute("DELETE FROM users WHERE username = ?", (username,))
     conn.commit()
@@ -1909,6 +1938,7 @@ def graph_node_to_dict(row) -> dict:
         "rows": analysis.get("rows", 0) if isinstance(analysis, dict) else 0,
         "columns": analysis.get("columns", 0) if isinstance(analysis, dict) else 0,
     }
+    item["planet_theme"] = analysis.get("planet_theme", "auto") if isinstance(analysis, dict) else "auto"
     return item
 
 def normalize_file_link_pair(file_id: str, related_file_id: str) -> tuple[str, str]:
@@ -1937,6 +1967,11 @@ def write_file_link_log(link_id: str, action: str, file_id: str, related_file_id
             created_by,
         )
     )
+
+PLANET_THEMES = {
+    "auto", "sun", "mercury", "venus", "earth", "mars",
+    "jupiter", "saturn", "uranus", "neptune", "pluto",
+}
 
 def save_file_version(file_id: str, saved_by: str):
     """Save current file as a version before updating."""
@@ -1985,7 +2020,7 @@ async def download_version(file_id: str, version_id: str, current_user: dict = D
     v = conn.execute("SELECT * FROM file_versions WHERE id = ? AND file_id = ?", (version_id, file_id)).fetchone()
     if not v:
         conn.close()
-        raise HTTPException(404, "鐗堟湰涓嶅瓨鍦?")
+        raise HTTPException(404, "版本不存在")
     
     f = conn.execute("SELECT type, filename FROM files WHERE id = ?", (file_id,)).fetchone()
     conn.close()
@@ -1993,7 +2028,7 @@ async def download_version(file_id: str, version_id: str, current_user: dict = D
     ext = f["type"].lower()
     version_file = UPLOAD_VERSIONS_DIR / f"{version_id}{ext}"
     if not version_file.exists():
-        raise HTTPException(404, "鐗堟湰鏂囦欢涓㈠け")
+        raise HTTPException(404, "版本文件丢失")
         
     return FileResponse(
         path=version_file,
@@ -2007,7 +2042,7 @@ async def restore_version(file_id: str, version_id: str, current_user: dict = De
     v = conn.execute("SELECT * FROM file_versions WHERE id = ? AND file_id = ?", (version_id, file_id)).fetchone()
     if not v:
         conn.close()
-        raise HTTPException(404, "鐗堟湰涓嶅瓨鍦?")
+        raise HTTPException(404, "版本不存在")
     
     f = conn.execute("SELECT type, filename FROM files WHERE id = ?", (file_id,)).fetchone()
     conn.close()
@@ -2017,7 +2052,7 @@ async def restore_version(file_id: str, version_id: str, current_user: dict = De
     current_file = UPLOAD_DIR / f"{file_id}{ext}"
     
     if not version_file.exists():
-        raise HTTPException(404, "鐗堟湰鏂囦欢涓㈠け")
+        raise HTTPException(404, "版本文件丢失")
         
     # Before restoring, save CURRENT state as a NEW version
     save_file_version(file_id, current_user["username"])
@@ -2059,7 +2094,7 @@ def extract_text(file_path: Path) -> str:
     if ext in (".csv", ".tsv"):
         try:
             df = pd.read_csv(file_path, encoding="utf-8", on_bad_lines="skip")
-            return f"CSV file, {len(df)} rows x {len(df.columns)} cols\nColumns: {', '.join(df.columns)}\n\n{df.head(100).to_string(index=False)}"
+            return f"CSV文件，{len(df)}行 × {len(df.columns)}列\n列名: {', '.join(df.columns)}\n\n{df.head(100).to_string(index=False)}"
         except Exception:
             with open(file_path, encoding="utf-8", errors="ignore") as f:
                 return f.read()
@@ -2075,14 +2110,65 @@ def extract_text(file_path: Path) -> str:
             rows = []
             for row in ws.iter_rows(values_only=True):
                 rows.append(str(row))
-            sheets_text.append(f"=== {sheet_name} ({len(rows)}琛? ===\n" + "\n".join(rows[:200]))
+            sheets_text.append(f"=== {sheet_name} ({len(rows)}行) ===\n" + "\n".join(rows[:200]))
         wb.close()
         return "\n\n".join(sheets_text)
+    if ext == ".doc":
+        return extract_doc_text(file_path)
     if ext == ".docx":
         doc = Document(str(file_path))
         return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
     with open(file_path, encoding="utf-8", errors="ignore") as f:
         return f.read()
+
+
+def extract_doc_text(file_path: Path) -> str:
+    """Extract text from legacy .doc files via local Microsoft Word when available."""
+    try:
+        import pythoncom
+        import win32com.client
+    except Exception:
+        return "[DOC 预览暂不可用，请使用 ONLYOFFICE 打开文档]"
+
+    word = None
+    doc = None
+    try:
+        pythoncom.CoInitialize()
+        word = win32com.client.Dispatch("Word.Application")
+        word.Visible = False
+        word.DisplayAlerts = 0
+        doc = word.Documents.Open(
+            str(file_path.resolve()),
+            ConfirmConversions=False,
+            ReadOnly=True,
+            AddToRecentFiles=False,
+            Visible=False,
+        )
+        text = doc.Content.Text or ""
+        text = text.replace("\r", "\n").replace("\x0b", "\n").replace("\x0c", "\n")
+        text = re.sub(r"[\x00-\x08\x0e-\x1f\x7f]", "", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        lines = [line.rstrip() for line in text.splitlines()]
+        normalized = "\n".join(lines).strip()
+        return normalized or "[DOC 文档内容为空]"
+    except Exception as e:
+        print(f"DOC extract error {file_path.name}: {e}")
+        return "[DOC 预览提取失败，请使用 ONLYOFFICE 打开文档]"
+    finally:
+        try:
+            if doc is not None:
+                doc.Close(False)
+        except Exception:
+            pass
+        try:
+            if word is not None:
+                word.Quit()
+        except Exception:
+            pass
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
 
 # ============ Analysis ============
 
@@ -2091,7 +2177,7 @@ def analyze_text(content: str, file_type: str) -> dict:
     non_empty = [l for l in lines if l.strip()]
     words = re.findall(r"[\w\u4e00-\u9fff]+", content)
 
-    stop = {"the", "a", "an", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "can", "this", "that", "these", "those", "it", "its", "of", "in", "to", "for", "with", "on", "at", "by", "from", "as", "into", "through", "during", "before", "after", "and", "but", "or", "nor", "not", "so", "yet", "both", "either", "neither", "each", "every", "all", "any", "few", "more", "most", "other", "some", "such", "no", "only", "own", "same", "than", "too", "very"}
+    stop = {"的", "了", "是", "在", "我", "有", "和", "就", "不", "人", "都", "一", "一个", "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有", "看", "过", "这个", "它", "那", "啊", "呢", "吧", "吗", "与", "及", "等", "对", "于", "从", "向", "以", "为", "将", "被", "让", "给", "由", "通过", "the", "a", "an", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "can", "this", "that", "these", "those", "it", "its", "of", "in", "to", "for", "with", "on", "at", "by", "from", "as", "into", "through", "during", "before", "after", "and", "but", "or", "nor", "not", "so", "yet", "both", "either", "neither", "each", "every", "all", "any", "few", "more", "most", "other", "some", "such", "no", "only", "own", "same", "than", "too", "very"}
     filtered = [w for w in words if w.lower() not in stop and len(w) > 1]
     top_words = Counter(filtered).most_common(30)
 
@@ -2190,7 +2276,7 @@ def analyze_csv_table(file_path: Path) -> dict:
             "head": head_dict,
         }
     except Exception as e:
-        return {"error": f"瑙ｆ瀽澶辫触: {str(e)}"}
+        return {"error": f"解析失败: {str(e)}"}
 
 # ============ File API (all require auth) ============
 
@@ -2257,8 +2343,8 @@ async def api_list_files_page(
     if folder:
         where_parts.append("folder = ?")
         params.append(folder)
-    # workspace filter is handled after access resolution so public files from
-    # other workspaces can still appear in the main list.
+    # workspace filter applied after access resolution so public files from
+    # other workspaces still appear in the main list
     if q:
         where_parts.append("filename LIKE ?")
         params.append(f"%{q.strip()}%")
@@ -2388,10 +2474,73 @@ async def api_list_file_links(current_user: dict = Depends(get_user)):
 
     return {"nodes": nodes, "links": links, "logs": logs, "locks": locks}
 
+@app.post("/api/graph-presence")
+async def api_graph_presence(req: dict, current_user: dict = Depends(get_user)):
+    mode = str(req.get("mode") or "browse")
+    if mode not in ("browse", "edit"):
+        mode = "browse"
+    now = datetime.now()
+    cutoff = (now - timedelta(seconds=35)).isoformat()
+    conn = get_db()
+    conn.execute("DELETE FROM graph_presence WHERE last_seen < ?", (cutoff,))
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO graph_presence (username, name, mode, last_seen)
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            current_user["username"],
+            current_user.get("name") or current_user["username"],
+            mode,
+            now.isoformat(),
+        ),
+    )
+    rows = conn.execute(
+        "SELECT username, name, mode, last_seen FROM graph_presence ORDER BY last_seen DESC"
+    ).fetchall()
+    conn.commit()
+    conn.close()
+    users = [dict(row) for row in rows]
+    return {"count": len(users), "users": users}
+
+@app.post("/api/files/{file_id}/planet-theme")
+async def api_update_file_planet_theme(file_id: str, req: FilePlanetThemeUpdate, current_user: dict = Depends(get_user)):
+    theme = (req.theme or "auto").strip().lower()
+    if theme not in PLANET_THEMES:
+        raise HTTPException(400, "未知的星球主题")
+
+    conn = get_db()
+    row = conn.execute("SELECT * FROM files WHERE id = ?", (file_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "文件不存在")
+    if not can_user_access_file_row(row, current_user, conn):
+        conn.close()
+        raise HTTPException(403, "没有权限设置此文件的星球主题")
+
+    try:
+        analysis = json.loads(row["analysis"]) if row["analysis"] else {}
+    except Exception:
+        analysis = {}
+    if not isinstance(analysis, dict):
+        analysis = {}
+    if theme == "auto":
+        analysis.pop("planet_theme", None)
+    else:
+        analysis["planet_theme"] = theme
+
+    conn.execute(
+        "UPDATE files SET analysis = ? WHERE id = ?",
+        (json.dumps(analysis, ensure_ascii=False), file_id)
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True, "theme": theme}
+
 @app.post("/api/file-links")
 async def api_create_file_link(req: FileLinkCreateRequest, current_user: dict = Depends(get_user)):
     if req.file_id == req.related_file_id:
-        raise HTTPException(400, "涓嶈兘鍏宠仈鍚屼竴涓枃浠?")
+        raise HTTPException(400, "不能关联同一个文件")
 
     file_a, file_b = normalize_file_link_pair(req.file_id, req.related_file_id)
     conn = get_db()
@@ -2399,10 +2548,10 @@ async def api_create_file_link(req: FileLinkCreateRequest, current_user: dict = 
     row_b = conn.execute("SELECT * FROM files WHERE id = ?", (file_b,)).fetchone()
     if not row_a or not row_b:
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     if not can_user_access_file_row(row_a, current_user, conn) or not can_user_access_file_row(row_b, current_user, conn):
         conn.close()
-        raise HTTPException(403, "鏃犳潈璁块棶鍏宠仈鏂囦欢")
+        raise HTTPException(403, "无权访问关联文件")
 
     link_id = uuid.uuid4().hex[:16]
     now = datetime.now().isoformat()
@@ -2432,7 +2581,7 @@ async def api_delete_file_link(link_id: str, current_user: dict = Depends(get_us
     row = conn.execute("SELECT * FROM file_links WHERE id = ?", (link_id,)).fetchone()
     if not row:
         conn.close()
-        raise HTTPException(404, "鍏宠仈涓嶅瓨鍦?")
+        raise HTTPException(404, "关联不存在")
 
     row_a = conn.execute("SELECT * FROM files WHERE id = ?", (row["file_id"],)).fetchone()
     row_b = conn.execute("SELECT * FROM files WHERE id = ?", (row["related_file_id"],)).fetchone()
@@ -2443,7 +2592,7 @@ async def api_delete_file_link(link_id: str, current_user: dict = Depends(get_us
         return {"ok": True}
     if not can_user_access_file_row(row_a, current_user, conn) or not can_user_access_file_row(row_b, current_user, conn):
         conn.close()
-        raise HTTPException(403, "鏃犳潈鍒犻櫎璇ュ叧鑱?")
+        raise HTTPException(403, "无权删除该关联")
 
     write_file_link_log(row["id"], "delete", row["file_id"], row["related_file_id"], row["relation_label"], current_user["username"], conn)
     conn.execute("DELETE FROM file_links WHERE id = ?", (link_id,))
@@ -2458,7 +2607,7 @@ async def api_search(q: str = "", current_user: dict = Depends(get_user)):
 
     conn = get_db()
 
-    # Build permission filter 鈥?returns a set of allowed file_ids (None = all allowed)
+    # Build permission filter — returns a set of allowed file_ids (None = all allowed)
     is_admin = current_user["role"] == "admin"
     can_view_others = is_admin or get_permissions(current_user["username"]).get("can_view_others", False)
 
@@ -2476,8 +2625,8 @@ async def api_search(q: str = "", current_user: dict = Depends(get_user)):
                 """
                 SELECT
                     m.file_id,
-                    snippet(files_fts, 0, '<em>', '</em>', '鈥?, 16) AS fn_snip,
-                    snippet(files_fts, 1, '<em>', '</em>', '鈥?, 40) AS ct_snip,
+                    snippet(files_fts, 0, '<em>', '</em>', '…', 16) AS fn_snip,
+                    snippet(files_fts, 1, '<em>', '</em>', '…', 40) AS ct_snip,
                     rank
                 FROM files_fts
                 JOIN fts_file_map m ON files_fts.rowid = m.fts_rowid
@@ -2536,7 +2685,7 @@ async def api_search(q: str = "", current_user: dict = Depends(get_user)):
 
 
 def _get_settings_llm(settings: dict) -> tuple:
-    """Load active LLM settings and return (api_key, model, base_url, display_name)."""
+    """从设置中获取当前激活的 LLM 配置，返回 (api_key, model, base_url, display_name)。"""
     llm_configs_str = settings.get("llm_configs", "[]")
     active_idx = int(settings.get("active_llm_index", "0"))
     try:
@@ -2548,7 +2697,7 @@ def _get_settings_llm(settings: dict) -> tuple:
                 (conf.get("llm_api_key") or "").strip(),
                 model,
                 (conf.get("llm_base_url") or "").strip(),
-                (conf.get("name") or model or "?????")
+                (conf.get("name") or model or "未命名模型")
             )
     except Exception:
         pass
@@ -2562,7 +2711,7 @@ def _get_settings_llm(settings: dict) -> tuple:
 
 
 def _get_file_content_from_fts(file_id: str, conn) -> str:
-    """Read full file text from FTS table by file_id."""
+    """从 FTS 表读取文件的完整文本内容。"""
     try:
         row = conn.execute(
             "SELECT f.content FROM files_fts f JOIN fts_file_map m ON f.rowid = m.fts_rowid WHERE m.file_id = ?",
@@ -2574,12 +2723,12 @@ def _get_file_content_from_fts(file_id: str, conn) -> str:
 
 
 def _extract_relevant_chunk(content: str, question: str, chunk_size: int = 900) -> str:
-    """Find a relevant chunk in content for the given question."""
+    """在文件内容中找到与问题最相关的片段，返回 chunk_size 字符的窗口。"""
     if not content:
         return ""
     if len(content) <= chunk_size:
         return content.strip()
-    keywords = list(set(w.lower() for w in re.findall(r"[\w\u4e00-\u9fff]{2,}", question)))
+    keywords = list(set(w.lower() for w in re.findall(r"[\w一-鿿]{2,}", question)))
     content_lower = content.lower()
     best_pos, best_score = 0, -1
     step = max(1, chunk_size // 4)
@@ -2589,22 +2738,22 @@ def _extract_relevant_chunk(content: str, question: str, chunk_size: int = 900) 
         if score > best_score:
             best_score, best_pos = score, start
     chunk = content[best_pos:best_pos + chunk_size].strip()
-    prefix = "..." if best_pos > 0 else ""
-    suffix = "..." if best_pos + chunk_size < len(content) else ""
+    prefix = "…" if best_pos > 0 else ""
+    suffix = "…" if best_pos + chunk_size < len(content) else ""
     return prefix + chunk + suffix
 
 
 def _format_kb_answer(snippets: list) -> str:
-    """Format snippet list into a readable markdown answer."""
+    """将知识块列表格式化为可读的 Markdown 回答。"""
     parts = []
     for s in snippets:
         content = (s.get("content") or "").strip()
         if content:
-            parts.append(f"**{s.get('filename', '?????')}**\n\n{content}")
+            parts.append(f"**{s.get('filename', '未命名文件')}**\n\n{content}")
     if not parts:
-        return "????????"
+        return "未找到相关内容。"
     sep = "\n\n---\n\n"
-    return "???????????????\n\n" + sep.join(parts)
+    return "根据知识库检索到以下相关内容：\n\n" + sep.join(parts)
 
 
 @app.get("/api/settings")
@@ -2621,6 +2770,7 @@ async def get_system_settings(authorization: Optional[str] = Header(None)):
         "llm_base_url": settings.get("llm_base_url", "https://api.openai.com/v1"),
         "llm_configs": settings.get("llm_configs", "[]"),
         "active_llm_index": int(settings.get("active_llm_index", "0")),
+        "feature_report_enabled": settings.get("feature_report_enabled", "1") != "0",
     }
 
 @app.put("/api/settings")
@@ -2651,10 +2801,15 @@ def _resolve_report_db_path(path_str: str) -> Path:
 
 @app.get("/api/reports/access")
 async def report_access(current_user: dict = Depends(get_user)):
+    conn = get_db()
+    conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    row = conn.execute("SELECT value FROM settings WHERE key = 'feature_report_enabled'").fetchone()
+    conn.close()
+    online = (row["value"] if row else "1") != "0"
     if current_user["role"] == "admin":
-        return {"visible": True}
+        return {"visible": True, "online": online}
     perms = get_permissions(current_user["username"])
-    return {"visible": perms.get("can_view_report", False)}
+    return {"visible": perms.get("can_view_report", False), "online": online}
 
 @app.get("/api/reports/tables")
 async def report_tables(current_user: dict = Depends(get_user)):
@@ -2662,10 +2817,10 @@ async def report_tables(current_user: dict = Depends(get_user)):
     db_path_str = _get_report_db_path(conn)
     conn.close()
     if current_user["role"] != "admin" and not get_permissions(current_user["username"]).get("can_view_report", False):
-        raise HTTPException(403, "鏃犳潈璁块棶鎶ヨ〃")
+        raise HTTPException(403, "无权访问报表")
     db_path = _resolve_report_db_path(db_path_str)
     if not db_path.exists():
-        raise HTTPException(404, f"鎶ヨ〃鏁版嵁搴撲笉瀛樺湪: {db_path}")
+        raise HTTPException(404, f"报表数据库不存在: {db_path}")
     rep = sqlite3.connect(str(db_path))
     rep.row_factory = sqlite3.Row
     try:
@@ -2682,13 +2837,13 @@ async def report_table_data(table: str, limit: int = 200, current_user: dict = D
     db_path_str = _get_report_db_path(conn)
     conn.close()
     if current_user["role"] != "admin" and not get_permissions(current_user["username"]).get("can_view_report", False):
-        raise HTTPException(403, "鏃犳潈璁块棶鎶ヨ〃")
+        raise HTTPException(403, "无权访问报表")
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
-        raise HTTPException(400, "鏃犳晥琛ㄥ悕")
+        raise HTTPException(400, "无效表名")
     limit = max(1, min(limit, 1000))
     db_path = _resolve_report_db_path(db_path_str)
     if not db_path.exists():
-        raise HTTPException(404, f"鎶ヨ〃鏁版嵁搴撲笉瀛樺湪: {db_path}")
+        raise HTTPException(404, f"报表数据库不存在: {db_path}")
     rep = sqlite3.connect(str(db_path))
     rep.row_factory = sqlite3.Row
     try:
@@ -2697,7 +2852,7 @@ async def report_table_data(table: str, limit: int = 200, current_user: dict = D
             (table,),
         ).fetchone()
         if not exists:
-            raise HTTPException(404, "鏁版嵁琛ㄤ笉瀛樺湪")
+            raise HTTPException(404, "数据表不存在")
         cnt = rep.execute(f'SELECT COUNT(*) AS cnt FROM "{table}"').fetchone()["cnt"]
         rows = rep.execute(f'SELECT * FROM "{table}" LIMIT ?', (limit,)).fetchall()
         data = [dict(r) for r in rows]
@@ -2706,13 +2861,160 @@ async def report_table_data(table: str, limit: int = 200, current_user: dict = D
     finally:
         rep.close()
 
+@app.post("/api/reports/query")
+async def report_query(req: dict, current_user: dict = Depends(get_user)):
+    """执行自定义 SQL 查询并返回结果。仅允许 SELECT 语句。"""
+    if current_user["role"] != "admin" and not get_permissions(current_user["username"]).get("can_view_report", False):
+        raise HTTPException(403, "无权访问报表")
+    sql = (req.get("sql") or "").strip()
+    if not sql:
+        raise HTTPException(400, "SQL 不能为空")
+    sql_upper = sql.upper().lstrip()
+    if not sql_upper.startswith("SELECT"):
+        raise HTTPException(400, "仅允许 SELECT 查询")
+    limit = max(1, min(int(req.get("limit") or 500), 2000))
+
+    conn = get_db()
+    db_path_str = _get_report_db_path(conn)
+    conn.close()
+    db_path = _resolve_report_db_path(db_path_str)
+    if not db_path.exists():
+        raise HTTPException(404, f"报表数据库不存在: {db_path}")
+
+    rep = sqlite3.connect(str(db_path))
+    rep.row_factory = sqlite3.Row
+    try:
+        total_rows = rep.execute(f"SELECT COUNT(*) AS cnt FROM ({sql})").fetchone()["cnt"]
+        rows = rep.execute(f"SELECT * FROM ({sql}) LIMIT ?", (limit,)).fetchall()
+        data = [dict(r) for r in rows]
+        columns = list(data[0].keys()) if data else []
+        return {"columns": columns, "rows": data, "total": total_rows, "db_path": str(db_path)}
+    except Exception as e:
+        raise HTTPException(400, f"查询失败: {e}")
+    finally:
+        rep.close()
+
+
+@app.get("/api/reports/configs")
+async def list_report_configs(current_user: dict = Depends(get_user)):
+    """列出当前用户保存的报表配置。"""
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS report_configs (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            sql_query TEXT NOT NULL,
+            column_headers TEXT DEFAULT '{}',
+            style_config TEXT DEFAULT '{}',
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    rows = conn.execute(
+        "SELECT * FROM report_configs WHERE created_by = ? ORDER BY updated_at DESC",
+        (current_user["username"],),
+    ).fetchall()
+    conn.close()
+    configs = []
+    for r in rows:
+        d = dict(r)
+        d["column_headers"] = json.loads(d.get("column_headers") or "{}")
+        d["style_config"] = json.loads(d.get("style_config") or "{}")
+        configs.append(d)
+    return {"configs": configs}
+
+
+@app.post("/api/reports/configs")
+async def create_report_config(req: dict, current_user: dict = Depends(get_user)):
+    """保存新报表配置。"""
+    name = (req.get("name") or "").strip()
+    sql_query = (req.get("sql_query") or "").strip()
+    if not name or not sql_query:
+        raise HTTPException(400, "名称和 SQL 不能为空")
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS report_configs (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            sql_query TEXT NOT NULL,
+            column_headers TEXT DEFAULT '{}',
+            style_config TEXT DEFAULT '{}',
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    config_id = uuid.uuid4().hex[:16]
+    now = datetime.now().isoformat()
+    conn.execute(
+        "INSERT INTO report_configs (id, name, sql_query, column_headers, style_config, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+        (config_id, name, sql_query,
+         json.dumps(req.get("column_headers") or {}, ensure_ascii=False),
+         json.dumps(req.get("style_config") or {}, ensure_ascii=False),
+         current_user["username"], now, now),
+    )
+    conn.commit()
+    conn.close()
+    return {"id": config_id, "name": name}
+
+
+@app.put("/api/reports/configs/{config_id}")
+async def update_report_config(config_id: str, req: dict, current_user: dict = Depends(get_user)):
+    """更新已有报表配置。"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT created_by FROM report_configs WHERE id = ?", (config_id,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "报表配置不存在")
+    if row["created_by"] != current_user["username"] and current_user["role"] != "admin":
+        conn.close()
+        raise HTTPException(403, "无权修改此报表")
+    updates, params = [], []
+    if "name" in req and req["name"]:
+        updates.append("name = ?"); params.append(req["name"].strip())
+    if "sql_query" in req:
+        updates.append("sql_query = ?"); params.append(req["sql_query"].strip())
+    if "column_headers" in req:
+        updates.append("column_headers = ?"); params.append(json.dumps(req["column_headers"] or {}, ensure_ascii=False))
+    if "style_config" in req:
+        updates.append("style_config = ?"); params.append(json.dumps(req["style_config"] or {}, ensure_ascii=False))
+    updates.append("updated_at = ?"); params.append(datetime.now().isoformat())
+    params.append(config_id)
+    conn.execute(f"UPDATE report_configs SET {', '.join(updates)} WHERE id = ?", params)
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.delete("/api/reports/configs/{config_id}")
+async def delete_report_config(config_id: str, current_user: dict = Depends(get_user)):
+    """删除报表配置。"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT created_by FROM report_configs WHERE id = ?", (config_id,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "报表配置不存在")
+    if row["created_by"] != current_user["username"] and current_user["role"] != "admin":
+        conn.close()
+        raise HTTPException(403, "无权删除此报表")
+    conn.execute("DELETE FROM report_configs WHERE id = ?", (config_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
 @app.post("/api/settings/test-llm")
 async def test_llm_settings(req: LlmTestRequest, current_user: dict = Depends(get_admin_user)):
     api_key = (req.llm_api_key or "").strip()
     model = (req.llm_model or "").strip()
     base_url = (req.llm_base_url or "").strip()
     if not api_key or not model or not base_url:
-        raise HTTPException(400, "llm_api_key / llm_model / llm_base_url 涓嶈兘涓虹┖")
+        raise HTTPException(400, "llm_api_key / llm_model / llm_base_url 不能为空")
 
     import httpx
     is_anthropic = _is_anthropic_protocol(base_url, model)
@@ -2743,9 +3045,9 @@ async def test_llm_settings(req: LlmTestRequest, current_user: dict = Depends(ge
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, json=payload_data, headers=headers, timeout=30.0)
             resp.raise_for_status()
-        return {"ok": True, "message": "杩炴帴鎴愬姛"}
+        return {"ok": True, "message": "连接成功"}
     except Exception as e:
-        raise HTTPException(400, f"杩炴帴澶辫触: {e}")
+        raise HTTPException(400, f"连接失败: {e}")
 
 @app.get("/api/qa/model-info")
 async def get_qa_model_info(current_user: dict = Depends(get_user)):
@@ -2782,9 +3084,9 @@ def _extract_anthropic_text(data: dict) -> str:
 
 
 def _build_qa_snippets(search_results: list, question: str) -> list:
-    """Build QA snippets from search results."""
+    """从搜索结果中构建 QA 知识块，每块包含文件的完整相关段落（而非 FTS 短摘要）。"""
     def _strip_tags(text: str) -> str:
-        return re.sub(r"<[^>]+>", "", text or "").replace("?", " ").strip()
+        return re.sub(r"<[^>]+>", "", text or "").replace("…", " ").strip()
 
     snippets = []
     conn = get_db()
@@ -2792,6 +3094,7 @@ def _build_qa_snippets(search_results: list, question: str) -> list:
         for item in (search_results or [])[:5]:
             short_snip = _strip_tags(item.get("snippet") or "")
             file_id = item.get("id")
+            # 优先从 FTS 读取完整内容并提取最相关段落
             larger_content = short_snip
             if file_id:
                 full = _get_file_content_from_fts(file_id, conn)
@@ -2803,13 +3106,285 @@ def _build_qa_snippets(search_results: list, question: str) -> list:
                 "file_id": file_id,
                 "filename": item.get("filename"),
                 "type": item.get("type"),
-                "snippet": (short_snip or larger_content)[:200],
-                "content": larger_content,
+                "snippet": (short_snip or larger_content)[:200],  # 短摘要用于来源展示
+                "content": larger_content                          # 完整段落用于回答
             })
     finally:
         conn.close()
     return snippets
 
+
+@app.post("/api/qa/ask")
+async def api_qa_ask(payload: QaAskRequest, current_user: dict = Depends(get_user)):
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(400, "问题不能为空")
+
+    if payload.selected_file_id:
+        search_results = [r for r in await api_search(question, current_user)
+                          if r.get("id") == payload.selected_file_id]
+    else:
+        search_results = await api_search(question, current_user)
+    snippets = _build_qa_snippets(search_results, question)
+    api_key, model, base_url, model_name = _load_llm_settings()
+
+    source_lines = [{
+        "file_id": s["file_id"],
+        "filename": s["filename"],
+        "type": s["type"],
+        "snippet": s["snippet"]
+    } for s in snippets[:3]]
+
+    # 优先：知识库有内容 → 直接返回知识块答案，无需调用大模型
+    if snippets:
+        return {
+            "answer": _format_kb_answer(snippets[:3]),
+            "sources": source_lines,
+            "confidence": min(0.95, 0.4 + 0.12 * len(snippets)),
+            "is_llm": False,
+            "model_name": model_name
+        }
+
+    # 兜底：知识库无结果 → 调用大模型（如已配置）
+    if api_key and model:
+        try:
+            import httpx
+            messages = [{"role": "system", "content": "你是一个智能助手，请尽力回答用户的问题。"}]
+            for m in (payload.messages or []):
+                messages.append({"role": m["role"], "content": m["content"]})
+            messages.append({"role": "user", "content": question})
+            is_anthropic = _is_anthropic_protocol(base_url, model)
+            async with httpx.AsyncClient() as client:
+                if is_anthropic:
+                    anth_messages = [m for m in messages if m.get("role") in ("user", "assistant")]
+                    r = await client.post(
+                        base_url.rstrip("/") + "/messages",
+                        json={
+                            "model": model,
+                            "messages": anth_messages,
+                            "max_tokens": 2000,
+                        },
+                        headers={
+                            "x-api-key": api_key,
+                            "anthropic-version": "2023-06-01",
+                            "Content-Type": "application/json",
+                        },
+                        timeout=60.0
+                    )
+                else:
+                    r = await client.post(
+                        base_url.rstrip("/") + "/chat/completions",
+                        json={"model": model, "messages": messages, "max_tokens": 2000},
+                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                        timeout=60.0
+                    )
+                r.raise_for_status()
+                data = r.json()
+            answer_text = _extract_anthropic_text(data) if is_anthropic else data["choices"][0]["message"]["content"]
+            return {
+                "answer": answer_text,
+                "sources": [],
+                "confidence": "AI 大模型",
+                "is_llm": True,
+                "model_name": model_name
+            }
+        except Exception as e:
+            print(f"LLM call error: {e}")
+            return {"answer": f"调用大模型失败：{e}", "sources": [], "confidence": 0.0}
+
+    return {
+        "answer": "我暂时没有在可访问文件中检索到足够相关的内容。你可以换个更具体的问题，或先上传相关资料后再问我。\n\n（提示：管理员可在[系统设置]中配置大模型 API，当知识库无答案时将自动调用大模型。）",
+        "sources": [],
+        "confidence": 0.0
+    }
+
+
+@app.post("/api/qa/ask/stream")
+async def api_qa_ask_stream(payload: QaAskRequest, current_user: dict = Depends(get_user)):
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(400, "问题不能为空")
+
+    if payload.selected_file_id:
+        search_results = [r for r in await api_search(question, current_user)
+                          if r.get("id") == payload.selected_file_id]
+    else:
+        search_results = await api_search(question, current_user)
+    snippets = _build_qa_snippets(search_results, question)
+    api_key, model, base_url, model_name = _load_llm_settings()
+
+    source_lines = [{
+        "file_id": s["file_id"],
+        "filename": s["filename"],
+        "type": s["type"],
+        "snippet": s["snippet"]
+    } for s in snippets[:3]]
+
+    async def generate():
+        import httpx as _httpx
+
+        # 第一帧：发送来源列表和模型信息
+        yield f"data: {json.dumps({'type': 'sources', 'sources': source_lines, 'model': model_name}, ensure_ascii=False)}\n\n"
+
+        # 优先：知识库有内容 → 直接返回知识块，不调大模型
+        if snippets:
+            answer = _format_kb_answer(snippets[:3])
+            yield f"data: {json.dumps({'type': 'token', 'content': answer, 'source': 'kb'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'source': 'kb'})}\n\n"
+            return
+
+        # 兜底：知识库无结果 → 调用大模型（流式）
+        if not api_key or not model:
+            msg = "我暂时没有在可访问文件中检索到足够相关的内容。你可以换个更具体的问题，或先上传相关资料后再问我。\n\n（提示：管理员可在[系统设置]中配置大模型 API，当知识库无答案时将自动调用大模型。）"
+            yield f"data: {json.dumps({'type': 'token', 'content': msg}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            return
+
+        messages = [{"role": "system", "content": "你是一个智能助手，请尽力回答用户的问题，保持友好的对话风格。"}]
+        for m in (payload.messages or []):
+            messages.append({"role": m["role"], "content": m["content"]})
+        messages.append({"role": "user", "content": question})
+
+        try:
+            is_anthropic = _is_anthropic_protocol(base_url, model)
+            async with _httpx.AsyncClient() as client:
+                if is_anthropic:
+                    anth_messages = [m for m in messages if m.get("role") in ("user", "assistant")]
+                    async with client.stream(
+                        "POST",
+                        base_url.rstrip("/") + "/messages",
+                        json={"model": model, "messages": anth_messages, "stream": True, "max_tokens": 2000},
+                        headers={
+                            "x-api-key": api_key,
+                            "anthropic-version": "2023-06-01",
+                            "Content-Type": "application/json"
+                        },
+                        timeout=120.0
+                    ) as resp:
+                        resp.raise_for_status()
+                        async for line in resp.aiter_lines():
+                            if not line.startswith("data: "):
+                                continue
+                            data_str = line[6:]
+                            try:
+                                chunk = json.loads(data_str)
+                            except Exception:
+                                continue
+                            if chunk.get("type") == "content_block_delta":
+                                content = chunk.get("delta", {}).get("text", "")
+                                if content:
+                                    yield f"data: {json.dumps({'type': 'token', 'content': content}, ensure_ascii=False)}\n\n"
+                else:
+                    async with client.stream(
+                        "POST",
+                        base_url.rstrip("/") + "/chat/completions",
+                        json={"model": model, "messages": messages, "stream": True, "max_tokens": 2000},
+                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                        timeout=120.0
+                    ) as resp:
+                        resp.raise_for_status()
+                        async for line in resp.aiter_lines():
+                            if not line.startswith("data: "):
+                                continue
+                            data_str = line[6:]
+                            if data_str == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data_str)
+                                content = chunk["choices"][0].get("delta", {}).get("content", "")
+                                if content:
+                                    yield f"data: {json.dumps({'type': 'token', 'content': content}, ensure_ascii=False)}\n\n"
+                            except Exception:
+                                pass
+        except Exception as e:
+            print(f"LLM stream error: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+@app.post("/api/upload")
+async def api_upload_file(
+    file: UploadFile = File(...),
+    folder: str = "",
+    workspace_id: str = "",
+    visibility: str = "workspace",
+    allow_view: bool = True,
+    allow_edit: bool = False,
+    allow_delete: bool = False,
+    current_user: dict = Depends(get_user)
+):
+    check_perm(current_user, "can_upload")
+    
+    # Read content first to get size
+    content = await file.read()
+    file_size = len(content)
+
+    conn = get_db()
+    try:
+        check_quota(current_user["username"], workspace_id, file_size, conn)
+    except HTTPException:
+        conn.close()
+        raise
+    
+    file_id = uuid.uuid4().hex[:12]
+    ext = Path(file.filename).suffix
+    safe_name = f"{file_id}{ext}"
+    file_path = UPLOAD_DIR / safe_name
+
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    try:
+        text_content = extract_text(file_path)
+    except Exception as e:
+        text_content = f"[提取失败: {e}]"
+
+    ext_lower = ext.lower()
+    if ext_lower in (".csv", ".xlsx", ".xls"):
+        analysis = analyze_csv_table(file_path)
+    else:
+        analysis = analyze_text(text_content, ext_lower)
+
+    analysis_json = json.dumps(analysis, ensure_ascii=False)
+    now = datetime.now().isoformat()
+
+    c = conn.cursor()
+    if folder:
+        c.execute("INSERT OR IGNORE INTO folders (folder) VALUES (?)", (folder,))
+
+    c.execute(
+        "INSERT INTO files (id, filename, size, type, folder, workspace_id, view_count, uploaded_at, uploaded_by, analysis) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (file_id, file.filename, file_size, ext_lower, folder, workspace_id, 0, now, current_user["username"], analysis_json)
+    )
+    
+    # Update quota
+    update_quota(current_user["username"], workspace_id, file_size, conn)
+
+    if visibility != "workspace" or not allow_view or allow_edit or allow_delete:
+        _write_file_perms(file_id, visibility, allow_view, allow_edit, allow_delete, conn)
+
+    fts_index_file(conn, file_id, file.filename, ext_lower)
+    conn.commit()
+    conn.close()
+
+    return {
+        "id": file_id,
+        "filename": file.filename,
+        "size": file_size,
+        "type": ext_lower,
+        "folder": folder,
+        "workspace_id": workspace_id,
+        "view_count": 0,
+        "uploaded_at": now,
+        "uploaded_by": current_user["username"],
+        "analysis": analysis,
+    }
 
 @app.get("/api/files/favorites")
 async def api_list_favorites(current_user: dict = Depends(get_user)):
@@ -2838,7 +3413,6 @@ async def api_list_favorites(current_user: dict = Depends(get_user)):
     conn.close()
     return result
 
-
 @app.get("/api/files/{file_id}")
 async def api_get_file(file_id: str, current_user: dict = Depends(get_user)):
     conn = get_db()
@@ -2847,12 +3421,12 @@ async def api_get_file(file_id: str, current_user: dict = Depends(get_user)):
     row = c.fetchone()
     if not row:
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     ws = row["workspace_id"] if "workspace_id" in row.keys() else ""
     access = resolve_file_access(file_id, ws, row["uploaded_by"], current_user, conn)
     if not access["visible"] or not access["can_view"]:
         conn.close()
-        raise HTTPException(403, "鏃犳潈闄愭煡鐪嬫鏂囦欢")
+        raise HTTPException(403, "无权限查看此文件")
     f = file_to_dict(row)
     f["permissions"] = get_file_perms(file_id, conn)
     f["access"] = access
@@ -2873,7 +3447,7 @@ async def api_move_file(file_id: str, req: dict, current_user: dict = Depends(ge
     row = c.fetchone()
     if not row:
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     
     # Permission check for source file
     is_owner = row["uploaded_by"] == current_user["username"]
@@ -2886,10 +3460,10 @@ async def api_move_file(file_id: str, req: dict, current_user: dict = Depends(ge
                 ws_member = conn.execute("SELECT role FROM workspace_members WHERE workspace_id = ? AND username = ?", (ws_id, current_user["username"])).fetchone()
                 if not ws_member or ws_member["role"] != "admin":
                     conn.close()
-                    raise HTTPException(403, "鏃犳潈绉诲姩姝ゆ枃浠?")
+                    raise HTTPException(403, "无权移动此文件")
             else:
                 conn.close()
-                raise HTTPException(403, "鏃犳潈绉诲姩姝ゆ枃浠?")
+                raise HTTPException(403, "无权移动此文件")
 
     # Permission check for target workspace
     if target_workspace is not None and target_workspace != "":
@@ -2897,7 +3471,7 @@ async def api_move_file(file_id: str, req: dict, current_user: dict = Depends(ge
             ws_member = conn.execute("SELECT role FROM workspace_members WHERE workspace_id = ? AND username = ?", (target_workspace, current_user["username"])).fetchone()
             if not ws_member:
                 conn.close()
-                raise HTTPException(403, "鎮ㄤ笉鏄洰鏍囧伐浣滅┖闂寸殑鎴愬憳锛屾棤娉曠Щ鍔ㄦ枃浠跺埌璇ョ┖闂?")
+                raise HTTPException(403, "您不是目标工作空间的成员，无法移动文件到该空间")
 
     updates = []
     params = []
@@ -2953,13 +3527,13 @@ async def api_delete_file(file_id: str, current_user: dict = Depends(get_user)):
     row = c.fetchone()
     if not row:
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     f = file_to_dict(row)
     ws = f.get("workspace_id", "")
     access = resolve_file_access(file_id, ws, f["uploaded_by"], current_user, conn)
     if not access["can_delete"]:
         conn.close()
-        raise HTTPException(403, "鏃犳潈闄愬垹闄ゆ鏂囦欢")
+        raise HTTPException(403, "无权限删除此文件")
     # Calculate total size to remove from quota (main file + all versions)
     total_size_to_remove = f["size"]
     versions = conn.execute("SELECT id, size FROM file_versions WHERE file_id = ?", (file_id,)).fetchall()
@@ -3001,7 +3575,7 @@ async def api_create_file(req: FileCreateRequest, current_user: dict = Depends(g
     file_id = uuid.uuid4().hex[:12]
     ext = req.file_type.lower()
     if ext not in (".txt", ".md", ".docx", ".xlsx", ".csv"):
-        raise HTTPException(400, "涓嶆敮鎸佺殑鏂囦欢绫诲瀷")
+        raise HTTPException(400, "不支持的文件类型")
     safe_name = f"{file_id}{ext}"
     file_path = UPLOAD_DIR / safe_name
 
@@ -3084,19 +3658,19 @@ async def api_get_file_content(file_id: str, current_user: dict = Depends(get_us
     row = c.fetchone()
     if not row:
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     f = file_to_dict(row)
     is_owner = f.get("uploaded_by") == current_user["username"]
     if current_user["role"] != "admin" and not is_owner:
         perms = get_permissions(current_user["username"])
         if not perms.get("can_view_others", False):
             conn.close()
-            raise HTTPException(403, "鏃犳潈闄愭煡鐪嬩粬浜烘枃浠?")
+            raise HTTPException(403, "无权限查看他人文件")
     conn.close()
     ext = f["type"].lower()
     file_path = UPLOAD_DIR / f"{file_id}{ext}"
     if not file_path.exists():
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
 
     # Check lock and draft
     is_locked, locker = get_file_lock_info(file_id)
@@ -3132,7 +3706,7 @@ async def api_get_file_content(file_id: str, current_user: dict = Depends(get_us
             reader = csv.reader(f)
             data = [row for row in reader]
         return {"content": data, "locked_by": locker if is_locked else None}
-    raise HTTPException(400, "姝ゆ枃浠剁被鍨嬩笉鏀寔缂栬緫")
+    raise HTTPException(400, "此文件类型不支持编辑")
 
 @app.get("/api/files/{file_id}/download")
 async def api_download_file(file_id: str, current_user: dict = Depends(get_user)):
@@ -3142,17 +3716,17 @@ async def api_download_file(file_id: str, current_user: dict = Depends(get_user)
     row = c.fetchone()
     if not row:
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     f = file_to_dict(row)
     is_owner = f.get("uploaded_by") == current_user["username"]
     if current_user["role"] != "admin" and not is_owner:
         conn.close()
-        raise HTTPException(403, "鏃犳潈闄愪笅杞戒粬浜烘枃浠?")
+        raise HTTPException(403, "无权限下载他人文件")
     conn.close()
     ext = f["type"].lower()
     file_path = UPLOAD_DIR / f"{file_id}{ext}"
     if not file_path.exists():
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     from fastapi.responses import FileResponse
     return FileResponse(
         path=file_path,
@@ -3168,20 +3742,20 @@ async def api_update_file(file_id: str, req: FileUpdateRequest, current_user: di
     row = c.fetchone()
     if not row:
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     f = file_to_dict(row)
     old_size = f["size"]
     ws = f.get("workspace_id", "")
     access = resolve_file_access(file_id, ws, f["uploaded_by"], current_user, conn)
     if not access["can_edit"]:
         conn.close()
-        raise HTTPException(403, "鏃犳潈闄愮紪杈戞鏂囦欢")
+        raise HTTPException(403, "无权限编辑此文件")
     
     ext = f["type"].lower()
     file_path = UPLOAD_DIR / f"{file_id}{ext}"
     if not file_path.exists():
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
 
     # Before overwriting, save a version
     # Note: save_file_version will increment quota for the new version
@@ -3205,7 +3779,7 @@ async def api_update_file(file_id: str, req: FileUpdateRequest, current_user: di
         wb.save(str(file_path))
     else:
         conn.close()
-        raise HTTPException(400, "姝ゆ枃浠剁被鍨嬩笉鏀寔缂栬緫")
+        raise HTTPException(400, "此文件类型不支持编辑")
     
     new_size = file_path.stat().st_size
     size_change = new_size - old_size
@@ -3261,7 +3835,7 @@ async def api_create_folder(req: FolderRequest, current_user: dict = Depends(get
         check_perm(current_user, "can_create_folder", is_owner=True)
     folder = req.folder.strip().strip("/")
     if not folder:
-        raise HTTPException(400, "璺緞涓嶈兘涓虹┖")
+        raise HTTPException(400, "路径不能为空")
     conn = get_db()
     conn.execute("INSERT OR IGNORE INTO folders (folder) VALUES (?)", (folder,))
     conn.commit()
@@ -3276,7 +3850,7 @@ async def api_delete_folder(folder: str, current_user: dict = Depends(get_user))
     c.execute("SELECT COUNT(*) as cnt FROM files WHERE folder = ?", (folder,))
     if c.fetchone()["cnt"] > 0:
         conn.close()
-        raise HTTPException(400, "璇ヨ矾寰勪笅杩樻湁鏂囦欢锛屾棤娉曞垹闄?")
+        raise HTTPException(400, "该路径下还有文件，无法删除")
     conn.execute("DELETE FROM folders WHERE folder = ?", (folder,))
     conn.commit()
     conn.close()
@@ -3288,9 +3862,9 @@ async def api_move_folder(req: dict, current_user: dict = Depends(get_user)):
     old_path = req.get("old_path", "").strip().strip("/")
     new_path = req.get("new_path", "").strip().strip("/")
     if not old_path:
-        raise HTTPException(400, "鍘熻矾寰勪笉鑳戒负绌?")
+        raise HTTPException(400, "原路径不能为空")
     if old_path == new_path:
-        raise HTTPException(400, "鐩爣璺緞涓嶈兘涓庡師璺緞鐩稿悓")
+        raise HTTPException(400, "目标路径不能与原路径相同")
 
     if current_user["role"] != "admin":
         check_perm(current_user, "can_create_folder", is_owner=True)
@@ -3302,18 +3876,18 @@ async def api_move_folder(req: dict, current_user: dict = Depends(get_user)):
     c.execute("SELECT folder FROM folders WHERE folder = ?", (old_path,))
     if not c.fetchone():
         conn.close()
-        raise HTTPException(404, "鍘熸枃浠跺す涓嶅瓨鍦?")
+        raise HTTPException(404, "原文件夹不存在")
 
     # Check target folder doesn't already exist
     if new_path:
         c.execute("SELECT folder FROM folders WHERE folder = ?", (new_path,))
         if c.fetchone():
             conn.close()
-            raise HTTPException(400, "鐩爣鏂囦欢澶瑰凡瀛樺湪")
+            raise HTTPException(400, "目标文件夹已存在")
         # Check new_path is not a subfolder of old_path (would create cycle)
         if new_path.startswith(old_path + "/"):
             conn.close()
-            raise HTTPException(400, "涓嶈兘灏嗘枃浠跺す绉诲姩鍒板叾鑷韩瀛愮洰褰曚笅")
+            raise HTTPException(400, "不能将文件夹移动到其自身子目录下")
 
     try:
         # Rename the folder itself
@@ -3350,7 +3924,7 @@ async def api_move_folder(req: dict, current_user: dict = Depends(get_user)):
     except Exception as e:
         conn.rollback()
         conn.close()
-        raise HTTPException(500, f"绉诲姩澶辫触: {str(e)}")
+        raise HTTPException(500, f"移动失败: {str(e)}")
     conn.close()
     return {"ok": True}
 
@@ -3364,7 +3938,7 @@ async def api_add_favorite(file_id: str, current_user: dict = Depends(get_user))
     c.execute("SELECT id FROM files WHERE id = ?", (file_id,))
     if not c.fetchone():
         conn.close()
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     now = datetime.now().isoformat()
     c.execute("INSERT OR IGNORE INTO file_favorites (username, file_id, created_at) VALUES (?, ?, ?)",
               (current_user["username"], file_id, now))
@@ -3403,7 +3977,7 @@ async def api_file_heartbeat(file_id: str, req: dict, current_user: dict = Depen
     # Verify lock ownership
     is_locked, locker = get_file_lock_info(file_id)
     if not is_locked or locker["username"] != current_user["username"]:
-        raise HTTPException(403, "鎮ㄦ湭鎸佹湁璇ユ枃浠剁殑缂栬緫閿?")
+        raise HTTPException(403, "您未持有该文件的编辑锁")
     
     # Update heartbeat
     now = datetime.now().isoformat()
@@ -3446,7 +4020,7 @@ async def api_dashboard(
     current_user: dict = Depends(get_user),
 ):
     conn = get_db()
-    fav_ids = set()
+    fav_ids: set = set()
     if favorites_only:
         fav_rows = conn.execute(
             "SELECT file_id FROM file_favorites WHERE username = ?",
@@ -3479,8 +4053,8 @@ async def api_dashboard(
 
     folder_stats = {}
     for f in files:
-        folder = f.get("folder", "") or "/"
-        folder_stats[folder] = folder_stats.get(folder, 0) + 1
+        folder_key = f.get("folder", "") or "/"
+        folder_stats[folder_key] = folder_stats.get(folder_key, 0) + 1
 
     sorted_by_time = sorted(files, key=lambda x: x.get("uploaded_at", ""), reverse=True)
     recent = [{"id": f["id"], "filename": f["filename"], "type": f.get("type", ""), "folder": f.get("folder", ""), "uploaded_at": f.get("uploaded_at", ""), "size": f.get("size", 0)} for f in sorted_by_time[:5]]
@@ -3494,8 +4068,8 @@ async def api_dashboard(
     all_filenames = [f["filename"] for f in files]
 
     # Aggregate top_words only from Office documents (Word/PowerPoint);
-    # code files, plain text, etc. are excluded 鈥?their filenames are used instead.
-    OFFICE_TYPES = {".docx", ".pptx"}
+    # code files, plain text, etc. are excluded — their filenames are used instead.
+    OFFICE_TYPES = {".doc", ".docx", ".pptx"}
     content_word_freq: dict = {}
     for f in files:
         if f.get("type", "") not in OFFICE_TYPES:
@@ -3537,7 +4111,7 @@ async def api_my_stats(current_user: dict = Depends(get_user)):
     hot_rows = conn.execute("SELECT filename, view_count, type FROM files WHERE uploaded_by = ? ORDER BY view_count DESC LIMIT 3", (username,)).fetchall()
     hot_files = [dict(r) for r in hot_rows]
     
-    # Recent 3 activities 鈥?sort by last modification time if available, else upload time
+    # Recent 3 activities — sort by last modification time if available, else upload time
     recent_rows = conn.execute(
         "SELECT filename, uploaded_at, type, last_modified_at, last_modified_by FROM files WHERE uploaded_by = ? ORDER BY COALESCE(last_modified_at, uploaded_at) DESC LIMIT 3",
         (username,),
@@ -3576,12 +4150,12 @@ async def onlyoffice_download(file_id: str):
     row = c.fetchone()
     conn.close()
     if not row:
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     f = file_to_dict(row)
     ext = f["type"].lower()
     file_path = UPLOAD_DIR / f"{file_id}{ext}"
     if not file_path.exists():
-        raise HTTPException(404, "鏂囦欢涓嶅瓨鍦?")
+        raise HTTPException(404, "文件不存在")
     from fastapi.responses import FileResponse
     return FileResponse(
         path=file_path,
@@ -3650,25 +4224,25 @@ async def onlyoffice_config(file_id: str, current_user: dict = Depends(get_user)
     row = c.fetchone()
     if not row:
         conn.close()
-        raise HTTPException(404, "File not found")
+        raise HTTPException(404, "文件不存在")
     f = file_to_dict(row)
     ws = row["workspace_id"] if "workspace_id" in row.keys() else ""
     access = resolve_file_access(file_id, ws, row["uploaded_by"], current_user, conn)
     if not access["visible"] or not access["can_view"]:
         conn.close()
-        raise HTTPException(403, "No permission to view this file")
+        raise HTTPException(403, "无权限查看此文件")
     can_edit = bool(access["can_edit"])
     conn.close()
 
     ext = f["type"].lower()
-    if ext == ".docx":
+    if ext in (".doc", ".docx"):
         doc_type = "word"
     elif ext in (".xlsx", ".xls"):
         doc_type = "cell"
     elif ext == ".pptx":
         doc_type = "slide"
     else:
-        raise HTTPException(400, "Unsupported file type for ONLYOFFICE")
+        raise HTTPException(400, "此文件类型不支持 ONLYOFFICE 在线编辑")
 
     download_url = f"{ONLYOFFICE_CALLBACK_BASE}/api/files/{file_id}/onlyoffice-download"
     callback_url = f"{ONLYOFFICE_CALLBACK_BASE}/api/files/{file_id}/onlyoffice-callback"
@@ -3708,7 +4282,7 @@ async def api_routes():
     data.sort(key=lambda x: x["path"])
     return data
 
-# 鈹€鈹€ Serve frontend static pages 鈹€鈹€
+# ── Serve frontend static pages ──
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 @app.get("/")
@@ -3742,7 +4316,3 @@ async def serve_qa_js():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
-
-
-

@@ -2309,7 +2309,7 @@
                @drop.prevent="handleDrop" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false">
             <div class="upload-icon">📂</div>
             <div class="upload-text">拖拽文件到此处，或点击上传</div>
-            <div class="upload-hint">支持 TXT / CSV / Excel / JSON / TSV / DOCX / MD</div>
+            <div class="upload-hint">支持 TXT / CSV / Excel / JSON / TSV / DOC / DOCX / MD</div>
             <input ref="fileInput" type="file" multiple hidden @change="handleFiles($event.target.files)">
             <div class="upload-actions">
               <button class="btn btn-secondary" @click.stop="openNewDocModal">＋ 新建文档</button>
@@ -4098,7 +4098,7 @@ createApp({
 
     function fanCardBg(type) {
       const e = (type || '').toLowerCase()
-      if (['.md', '.txt', '.docx'].includes(e))
+      if (['.md', '.txt', '.doc', '.docx'].includes(e))
         return 'linear-gradient(148deg,#1b4d8e 0%,#2563a8 55%,#3b7dd8 100%)'
       if (['.xlsx', '.xls', '.csv'].includes(e))
         return 'linear-gradient(148deg,#176344 0%,#1e8058 55%,#2da070 100%)'
@@ -4109,7 +4109,7 @@ createApp({
 
     function fanFileIcon(type) {
       const e = (type || '').toLowerCase()
-      if (['.md', '.txt', '.docx'].includes(e))
+      if (['.md', '.txt', '.doc', '.docx'].includes(e))
         return `<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`
       if (['.xlsx', '.xls', '.csv'].includes(e))
         return `<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>`
@@ -4708,7 +4708,9 @@ createApp({
         currentUser.value = { username: data.username, name: data.name, role: data.role }
         page.value = 'main'
         currentTab.value = 'overview'
-          loadDashboard(); loadWorkspaces(); loadReportAccess()
+        await loadWorkspaces()
+        loadDashboard()
+        loadReportAccess()
       } finally { loading.value = false }
     }
 
@@ -4733,7 +4735,9 @@ createApp({
         page.value = 'main'
         currentTab.value = 'overview'
         toast('注册成功')
-        loadDashboard(); loadWorkspaces(); loadReportAccess()
+        await loadWorkspaces()
+        loadDashboard()
+        loadReportAccess()
       } finally { loading.value = false }
     }
 
@@ -5315,6 +5319,7 @@ createApp({
       currentWorkspace.value = wsId
       uploadSettings.value.workspace_id = wsId
       await Promise.all([loadFiles(), loadAllFilesMeta()])
+      if (currentTab.value === 'overview') loadDashboard()
     }
 
     async function openPermModal(file) {
@@ -5811,9 +5816,14 @@ createApp({
     }
 
     // Editor
+    function isOnlyOfficeType(type) {
+      const t = String(type || '').toLowerCase()
+      return ['.doc', '.docx', '.xlsx', '.xls', '.pptx'].includes(t)
+    }
+
     function canEdit(type) {
       const t = String(type || '').toLowerCase()
-      return ['.txt', '.md', '.docx', '.xlsx', '.xls', '.csv', '.pptx', '.html', '.htm', '.json', '.xml', '.svg', '.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.less', '.log', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env', '.py', '.java', '.kt', '.swift', '.c', '.h', '.cpp', '.hpp', '.cs', '.go', '.rs', '.rb', '.php', '.r', '.lua', '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1', '.psm1', '.sql', '.pgsql', '.mysql', '.dockerfile', '.tf', '.hcl', '.gradle', '.groovy', '.dart', '.scala', '.db', '.sqlite', '.sqlite3', '.dump', '.dmp', '.bak', '.dat', '.bin', '.tsv', '.xhtml', '.xslt', '.xsd', '.csproj', '.config', '.properties'].includes(t)
+      return ['.txt', '.md', '.doc', '.docx', '.xlsx', '.xls', '.csv', '.pptx', '.html', '.htm', '.json', '.xml', '.svg', '.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.less', '.log', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env', '.py', '.java', '.kt', '.swift', '.c', '.h', '.cpp', '.hpp', '.cs', '.go', '.rs', '.rb', '.php', '.r', '.lua', '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1', '.psm1', '.sql', '.pgsql', '.mysql', '.dockerfile', '.tf', '.hcl', '.gradle', '.groovy', '.dart', '.scala', '.db', '.sqlite', '.sqlite3', '.dump', '.dmp', '.bak', '.dat', '.bin', '.tsv', '.xhtml', '.xslt', '.xsd', '.csproj', '.config', '.properties'].includes(t)
     }
 
     function openNewDocModal() {
@@ -5827,11 +5837,15 @@ createApp({
         return
       }
       if (file && file.access && file.access.can_edit === false) {
+        if (isOnlyOfficeType(file.type)) {
+          openOnlyOffice(file.id)
+          return
+        }
         openPreview(file.id)
         return
       }
       if (canEdit(file.type)) {
-        if (['.xlsx', '.xls', '.pptx'].includes(file.type)) {
+        if (isOnlyOfficeType(file.type)) {
           openOnlyOffice(file.id)
         } else {
           const origin = window.location.protocol === 'file:' ? 'http://localhost:8000' : window.location.origin
@@ -5883,9 +5897,13 @@ createApp({
 
     async function openPreview(fileId) {
       try {
+        const file = files.value.find(f => f.id === fileId)
+        if (file && isOnlyOfficeType(file.type)) {
+          openOnlyOffice(fileId)
+          return
+        }
         const data = await api(`/files/${fileId}/content`)
         previewFileId.value = fileId
-        const file = files.value.find(f => f.id === fileId)
         previewFilename.value = file?.filename || ''
         previewType.value = file?.type || '.txt'
         if (['.xlsx', '.csv'].includes(previewType.value)) {
@@ -5903,7 +5921,7 @@ createApp({
       previewOpen.value = false
       const fileId = previewFileId.value
       const file = files.value.find(f => f.id === fileId)
-      if (file && ['.xlsx', '.xls', '.pptx'].includes(file.type)) {
+      if (file && isOnlyOfficeType(file.type)) {
         openOnlyOffice(fileId)
       } else {
         const origin = window.location.protocol === 'file:' ? 'http://localhost:8000' : window.location.origin
@@ -5934,11 +5952,15 @@ createApp({
     function openFileEditor(file) {
       if (file && file.access && file.access.can_edit === false) {
         toast('无编辑权限，已切换为只读预览')
+        if (isOnlyOfficeType(file.type)) {
+          openOnlyOffice(file.id)
+          return
+        }
         openPreview(file.id)
         return
       }
 
-      if (['.xlsx', '.xls', '.pptx'].includes(file.type)) {
+      if (isOnlyOfficeType(file.type)) {
         openOnlyOffice(file.id)
       } else {
         const origin = window.location.protocol === 'file:' ? 'http://localhost:8000' : window.location.origin
@@ -5965,21 +5987,25 @@ createApp({
       try {
         // Load SDK if not loaded
         try { await loadOnlyOfficeScript() } catch(e) { toast('ONLYOFFICE SDK 未加载，请检查服务是否已启动'); ooLoading.value = false; return }
-        const lockRes = await api(`/files/${fileId}/lock`, { method: 'POST' })
-        if (lockRes && lockRes.ok === false) {
+        const configMeta = await api(`/files/${fileId}/onlyoffice-config`)
+        if (!configMeta) { toast('鑾峰彇閰嶇疆澶辫触'); ooLoading.value = false; return }
+        if (configMeta.can_edit) {
+          const lockRes = await api(`/files/${fileId}/lock`, { method: 'POST' })
+          if (lockRes && lockRes.ok === false) {
           const locker = lockRes.locker || {}
           toast(`${locker.name || locker.username || '有人'} 正在编辑此文件`)
           ooLoading.value = false
           return
         }
-        ooFileId.value = fileId
-        ooHeartbeatTimer.value = setInterval(() => {
+          ooFileId.value = fileId
+          ooHeartbeatTimer.value = setInterval(() => {
           api(`/files/${fileId}/heartbeat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
           }).catch(() => {})
         }, 10000)
+        }
         // Get config from backend
         const data = await api(`/files/${fileId}/onlyoffice-config`)
         if (!data) { toast('获取配置失败'); ooLoading.value = false; return }
@@ -6097,7 +6123,16 @@ createApp({
       if (token.value) {
         try {
           const user = await api('/me')
-            if (user) { currentUser.value = user; page.value = 'main'; loadDashboard(); checkUnreadAnnouncements(); loadWorkspaces(); loadReportAccess(); if (user.role === 'admin') loadTodos(); return }
+          if (user) {
+            currentUser.value = user
+            page.value = 'main'
+            await loadWorkspaces()
+            loadDashboard()
+            checkUnreadAnnouncements()
+            loadReportAccess()
+            if (user.role === 'admin') loadTodos()
+            return
+          }
         } catch(e) {}
       }
       page.value = 'login'
