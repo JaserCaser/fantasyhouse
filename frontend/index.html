@@ -4789,7 +4789,15 @@ createApp({
     // Dashboard
     async function loadDashboard() {
       try {
-        dashboard.value = await api('/dashboard') || {}
+        const params = new URLSearchParams()
+        if (showFavoritesOnly.value) {
+          params.set('favorites_only', 'true')
+        } else {
+          if (currentFolder.value) params.set('folder', currentFolder.value)
+          if (currentWorkspace.value) params.set('workspace_id', currentWorkspace.value)
+        }
+        const qs = params.toString()
+        dashboard.value = await api(qs ? `/dashboard?${qs}` : '/dashboard') || {}
       } catch(e) {}
     }
 
@@ -5925,20 +5933,8 @@ createApp({
 
     function openFileEditor(file) {
       if (file && file.access && file.access.can_edit === false) {
+        toast('无编辑权限，已切换为只读预览')
         openPreview(file.id)
-        return
-      }
-      const isOwner = file.uploaded_by === currentUser.value.username
-      const isAdmin = currentUser.value.role === 'admin'
-      const canEditOthers = myPermValues.can_edit_others
-
-      if (!isAdmin && !isOwner && !canEditOthers) {
-        showConfirm({
-          title: '知识库保护',
-          message: `您当前无权修改由 @${file.uploaded_by} 贡献的知识。建议以“只读预览”模式查看其内容。`,
-          confirmText: '只读预览',
-          onConfirm: () => openPreview(file.id)
-        })
         return
       }
 

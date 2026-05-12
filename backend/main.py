@@ -2824,8 +2824,19 @@ async def api_list_favorites(current_user: dict = Depends(get_user)):
         """,
         (current_user["username"],),
     ).fetchall()
+    result = []
+    for r in rows:
+        ws = r["workspace_id"] if "workspace_id" in r.keys() else ""
+        access = resolve_file_access(r["id"], ws, r["uploaded_by"], current_user, conn)
+        if not access["visible"] or not access["can_view"]:
+            continue
+        d = file_to_dict(r)
+        d["favorited"] = True
+        d["permissions"] = get_file_perms(r["id"], conn)
+        d["access"] = access
+        result.append(d)
     conn.close()
-    return [file_to_dict(r) for r in rows]
+    return result
 
 
 @app.get("/api/files/{file_id}")
@@ -3428,12 +3439,32 @@ async def api_unlock_file(file_id: str, current_user: dict = Depends(get_user)):
 # ============ Dashboard API ============
 
 @app.get("/api/dashboard")
-async def api_dashboard(current_user: dict = Depends(get_user)):
+async def api_dashboard(
+    folder: str = "",
+    workspace_id: str = "",
+    favorites_only: bool = False,
+    current_user: dict = Depends(get_user),
+):
     conn = get_db()
+    fav_ids = set()
+    if favorites_only:
+        fav_rows = conn.execute(
+            "SELECT file_id FROM file_favorites WHERE username = ?",
+            (current_user["username"],),
+        ).fetchall()
+        fav_ids = {r["file_id"] for r in fav_rows}
     rows = conn.execute("SELECT * FROM files").fetchall()
     files = []
     for r in rows:
+        if favorites_only and r["id"] not in fav_ids:
+            continue
+        if folder and r["folder"] != folder:
+            continue
         ws = r["workspace_id"] if "workspace_id" in r.keys() else ""
+        if workspace_id and ws != workspace_id:
+            perms = get_file_perms(r["id"], conn)
+            if perms.get("visibility") != "public":
+                continue
         access = resolve_file_access(r["id"], ws, r["uploaded_by"], current_user, conn)
         if not access["visible"] or not access["can_view"]:
             continue
